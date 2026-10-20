@@ -1,7 +1,7 @@
 import "server-only";
-import { db, newId, nowIso, transaction, type Payment, type Plan, type Subscription, type SubscriptionStatus, type User } from "./db";
+import { nowIso, type Payment, type Plan, type Subscription, type SubscriptionStatus, type User } from "./db";
 import { decrypt, encrypt } from "./crypto";
-import { expireRemaining, renewCredits } from "./credits";
+import { admin, unwrap, unwrapMaybe } from "./supabase/admin";
 import { approveBilling, deleteBillingKey, issueBillingKey, TossError } from "./toss";
 
 export const STATUS_LABEL: Record<SubscriptionStatus, string> = {
@@ -20,41 +20,71 @@ export function canGenerate(status: SubscriptionStatus | undefined): boolean {
 }
 
 const RETRY_DELAYS_DAYS = [1, 3]; // 결제 실패 시 1일, 3일 뒤 재시도
-const LOCK_MS = 2 * 60_000;
+const LOCK_SECONDS = 120;
 const TERMINAL: SubscriptionStatus[] = ["canceled", "expired"];
-
-function addMonth(iso: string): string {
-  const d = new Date(iso);
-  const day = d.getUTCDate();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() + 1);
-  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-  d.setUTCDate(Math.min(day, lastDay));
-  return d.toISOString();
-}
 
 const addDays = (iso: string, days: number) => new Date(new Date(iso).getTime() + days * 86400_000).toISOString();
 
-export function getPlans(): Plan[] {
-  return db.prepare("SELECT * FROM plans WHERE active = 1 ORDER BY sort").all() as Plan[];
+export async function getPlans(): Promise<Plan[]> {
+  return unwrap(
+    await admin()
+      .from("plans")
+      .select("id, name, price, monthly_credits, max_duration, description")
+      .eq("active", true)
+      .order("sort"),
+    "요금제 조회",
+  );
 }
 
-export function getPlan(id: string): Plan | undefined {
-  return db.prepare("SELECT * FROM plans WHERE id = ?").get(id) as Plan | undefined;
+export async function getPlan(id: string): Promise<Plan | undefined> {
+  const row = unwrapMaybe(
+    await admin().from("plans").select("id, name, price, monthly_credits, max_duration, description").eq("id", id).maybeSingle(),
+    "요금제 조회",
+  );
+  return row ?? undefined;
+}
+
+async function getSubscription(id: string): Promise<Subscription> {
+  return unwrap(await admin().from("subscriptions").select("*").eq("id", id).single(), "구독 조회") as Subscription;
 }
 
 /** 해지·만료되지 않은 현재 구독(없으면 가장 최근 구독) */
-export function getCurrentSubscription(userId: string): Subscription | undefined {
-  return db
-    .prepare(
-      `SELECT * FROM subscriptions WHERE user_id = ?
-       ORDER BY CASE WHEN status IN ('canceled', 'expired') THEN 1 ELSE 0 END, created_at DESC LIMIT 1`,
-    )
-    .get(userId) as Subscription | undefined;
+export async function getCurrentSubscription(userId: string): Promise<Subscription | undefined> {
+  const rows = unwrap(
+    await admin().from("subscriptions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(20),
+    "구독 조회",
+  ) as Subscription[];
+  return rows.find((s) => !TERMINAL.includes(s.status)) ?? rows[0];
 }
 
-export function listPayments(userId: string): Payment[] {
-  return db.prepare("SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").all(userId) as Payment[];
+export async function listPayments(userId: string): Promise<Payment[]> {
+  return unwrap(
+    await admin()
+      .from("payments")
+      .select("id, order_id, order_name, amount, status, billing_cycle, receipt_url, error_code, error_message, approved_at, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50),
+    "결제 내역 조회",
+  );
+}
+
+async function updateSubscription(id: string, values: Partial<Omit<Subscription, "id">>, what: string) {
+  unwrap(await admin().from("subscriptions").update({ ...values, updated_at: nowIso() }).eq("id", id), what);
+}
+
+/** 구독을 해지·만료 상태로 끝낸다: 상태 변경·잔여 크레딧 만료(DB 함수) 후 빌링키를 삭제한다. */
+async function endSubscription(sub: Subscription, status: "canceled" | "expired", reason: string, cancelRequested = false) {
+  const enc = unwrap(
+    await admin().rpc("end_subscription", {
+      p_subscription_id: sub.id,
+      p_status: status,
+      p_reason: reason,
+      p_cancel_requested: cancelRequested,
+    }),
+    "구독 종료",
+  );
+  await safeDeleteBillingKey(enc);
 }
 
 async function safeDeleteBillingKey(enc: string | null) {
@@ -86,7 +116,7 @@ export async function handleBillingAuthSuccess(
   if (params.customerKey !== user.customer_key) {
     return { ok: false, code: "CUSTOMER_KEY_MISMATCH", message: "로그인한 사용자와 결제 정보가 일치하지 않습니다." };
   }
-  const current = getCurrentSubscription(user.id);
+  const current = await getCurrentSubscription(user.id);
   const hasLive = current && !TERMINAL.includes(current.status) && current.status !== "pending";
 
   let issued;
@@ -102,9 +132,11 @@ export async function handleBillingAuthSuccess(
   if (hasLive && current) {
     // 결제 수단 변경: 새 빌링키로 교체하고 이전 빌링키는 삭제한다.
     const oldEnc = current.billing_key_enc;
-    db.prepare(
-      `UPDATE subscriptions SET billing_key_enc = ?, card_company = ?, card_number = ?, updated_at = ? WHERE id = ?`,
-    ).run(enc, card.company, card.number, nowIso(), current.id);
+    await updateSubscription(
+      current.id,
+      { billing_key_enc: enc, card_company: card.company, card_number: card.number },
+      "결제 수단 변경",
+    );
     await safeDeleteBillingKey(oldEnc);
     if (current.status === "past_due") {
       const r = await chargeSubscription(current.id);
@@ -114,21 +146,31 @@ export async function handleBillingAuthSuccess(
     return { ok: true, message: "결제 수단을 변경했습니다." };
   }
 
-  const plan = params.planId ? getPlan(params.planId) : undefined;
+  const plan = params.planId ? await getPlan(params.planId) : undefined;
   if (!plan) {
     await deleteBillingKey(issued.billingKey).catch(() => {});
     return { ok: false, code: "INVALID_PLAN", message: "요금제를 찾을 수 없습니다." };
   }
 
-  const subId = newId();
-  const now = nowIso();
-  db.prepare(
-    `INSERT INTO subscriptions (id, user_id, plan_id, status, billing_cycle, next_billing_at,
-       billing_key_enc, card_company, card_number, created_at, updated_at)
-     VALUES (?, ?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?)`,
-  ).run(subId, user.id, plan.id, now, enc, card.company, card.number, now, now);
+  const created = unwrap(
+    await admin()
+      .from("subscriptions")
+      .insert({
+        user_id: user.id,
+        plan_id: plan.id,
+        status: "pending",
+        billing_cycle: 0,
+        next_billing_at: nowIso(),
+        billing_key_enc: enc,
+        card_company: card.company,
+        card_number: card.number,
+      })
+      .select("id")
+      .single(),
+    "구독 생성",
+  );
 
-  const result = await chargeSubscription(subId);
+  const result = await chargeSubscription(created.id);
   if (!result.ok && result.unknown) {
     // 결제 결과를 알 수 없음: 빌링키를 유지하고 pending으로 둔다. 스케줄러가 같은 orderId로 재확인한다.
     return { ok: false, code: result.code, message: "결제 결과를 확인하는 중입니다. 잠시 후 구독 관리에서 상태를 확인해 주세요." };
@@ -140,57 +182,62 @@ export async function handleBillingAuthSuccess(
 /**
  * 다음 회차 요금을 결제한다. 스케줄러와 첫 결제가 함께 사용한다.
  * - DB 잠금으로 동시 실행을 막고
- * - (구독, 회차)당 DONE 결제는 하나만 허용하며(유니크 인덱스)
- * - 결과를 모르는 네트워크 오류는 같은 orderId(=멱등키)로 재시도한다.
+ * - (구독, 회차)당 DONE 결제는 하나만 허용하며(부분 유니크 인덱스)
+ * - 결과를 모르는 결제는 같은 orderId(=멱등키)로 재시도한다.
  */
 export async function chargeSubscription(subscriptionId: string): Promise<ActionResult> {
-  const now = nowIso();
-  const locked = db
-    .prepare(
-      `UPDATE subscriptions SET billing_lock_until = ?
-       WHERE id = ? AND (billing_lock_until IS NULL OR billing_lock_until < ?)`,
-    )
-    .run(new Date(Date.now() + LOCK_MS).toISOString(), subscriptionId, now);
-  if (locked.changes === 0) return { ok: false, code: "LOCKED", message: "이미 결제가 진행 중입니다." };
+  const locked = unwrap(
+    await admin().rpc("acquire_billing_lock", { p_subscription_id: subscriptionId, p_seconds: LOCK_SECONDS }),
+    "결제 잠금",
+  );
+  if (!locked) return { ok: false, code: "LOCKED", message: "이미 결제가 진행 중입니다." };
 
   try {
-    const sub = db.prepare("SELECT * FROM subscriptions WHERE id = ?").get(subscriptionId) as Subscription;
-    const plan = getPlan(sub.plan_id)!;
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(sub.user_id) as User;
+    const sub = await getSubscription(subscriptionId);
+    const plan = (await getPlan(sub.plan_id))!;
+    const user = unwrap(
+      await admin().from("profiles").select("id, email, customer_key").eq("id", sub.user_id).single(),
+      "사용자 조회",
+    );
     if (!sub.billing_key_enc) return { ok: false, code: "NO_BILLING_KEY", message: "등록된 결제 수단이 없습니다." };
 
     const cycle = sub.billing_cycle + 1;
-    const done = db
-      .prepare("SELECT 1 FROM payments WHERE subscription_id = ? AND billing_cycle = ? AND status = 'DONE'")
-      .get(sub.id, cycle);
-    if (done) return { ok: true, message: "이미 결제된 회차입니다." };
+    const attempts = unwrap(
+      await admin()
+        .from("payments")
+        .select("id, order_id, order_name, amount, status")
+        .eq("subscription_id", sub.id)
+        .eq("billing_cycle", cycle)
+        .order("created_at"),
+      "결제 시도 조회",
+    );
+    if (attempts.some((p) => p.status === "DONE")) return { ok: true, message: "이미 결제된 회차입니다." };
 
-    // 결과를 모르는 이전 시도가 있으면 같은 orderId로 재요청한다(토스 멱등키로 중복 결제 방지).
-    const unknown = db
-      .prepare("SELECT * FROM payments WHERE subscription_id = ? AND billing_cycle = ? AND status = 'UNKNOWN' LIMIT 1")
-      .get(sub.id, cycle) as Payment | undefined;
-    let payment: Payment;
-    if (unknown) {
-      payment = unknown;
-    } else {
-      const attempt =
-        (
-          db.prepare("SELECT COUNT(*) AS n FROM payments WHERE subscription_id = ? AND billing_cycle = ?").get(sub.id, cycle) as {
-            n: number;
-          }
-        ).n + 1;
-      const orderId = `sub_${sub.id.replaceAll("-", "")}_c${cycle}_a${attempt}`;
-      const orderName = `AI 비디오 ${plan.name} 구독 ${cycle}회차`;
-      const id = newId();
-      db.prepare(
-        `INSERT INTO payments (id, user_id, subscription_id, billing_cycle, order_id, order_name, amount, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'IN_PROGRESS', ?)`,
-      ).run(id, user.id, sub.id, cycle, orderId, orderName, plan.price, now);
-      payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(id) as Payment;
+    // 결과를 모르는 이전 시도(응답 유실, 처리 중 중단)가 있으면 같은 orderId로 재요청한다(토스 멱등키로 중복 결제 방지).
+    let payment = attempts.find((p) => p.status === "UNKNOWN" || p.status === "IN_PROGRESS");
+    if (!payment) {
+      const orderId = `sub_${sub.id.replaceAll("-", "")}_c${cycle}_a${attempts.length + 1}`;
+      payment = unwrap(
+        await admin()
+          .from("payments")
+          .insert({
+            user_id: user.id,
+            subscription_id: sub.id,
+            billing_cycle: cycle,
+            order_id: orderId,
+            order_name: `AI 비디오 ${plan.name} 구독 ${cycle}회차`,
+            amount: plan.price,
+            status: "IN_PROGRESS",
+          })
+          .select("id, order_id, order_name, amount, status")
+          .single(),
+        "결제 기록 생성",
+      );
     }
 
+    let res;
     try {
-      const res = await approveBilling(decrypt(sub.billing_key_enc), {
+      res = await approveBilling(decrypt(sub.billing_key_enc), {
         customerKey: user.customer_key,
         amount: payment.amount,
         orderId: payment.order_id,
@@ -200,78 +247,77 @@ export async function chargeSubscription(subscriptionId: string): Promise<Action
       if (res.status !== "DONE") {
         throw new TossError("NOT_DONE", `결제 상태가 완료가 아닙니다: ${res.status}`, 200);
       }
-      transaction(() => {
-        db.prepare(
-          `UPDATE payments SET status = 'DONE', payment_key = ?, receipt_url = ?, approved_at = ?, error_code = NULL, error_message = NULL
-           WHERE id = ?`,
-        ).run(res.paymentKey, res.receipt?.url ?? null, res.approvedAt ?? nowIso(), payment.id);
-        const periodStart = sub.period_end && sub.period_end < nowIso() && cycle > 1 ? sub.period_end : nowIso();
-        const periodEnd = addMonth(periodStart);
-        db.prepare(
-          `UPDATE subscriptions SET status = 'active', billing_cycle = ?, period_start = ?, period_end = ?,
-             next_billing_at = ?, retry_count = 0, updated_at = ? WHERE id = ?`,
-        ).run(cycle, periodStart, periodEnd, periodEnd, nowIso(), sub.id);
-        renewCredits(user.id, sub.id, plan.monthly_credits, cycle);
-      });
-      return { ok: true };
     } catch (e) {
       const err = e instanceof TossError ? e : new TossError("UNKNOWN_ERROR", (e as Error).message, 0);
       // 네트워크 오류·타임아웃은 실제 결제 여부를 알 수 없으므로 UNKNOWN으로 두고 같은 orderId로 재시도한다.
       const unknownResult = err.code === "NETWORK_ERROR" || err.status >= 500;
-      db.prepare("UPDATE payments SET status = ?, error_code = ?, error_message = ? WHERE id = ?").run(
-        unknownResult ? "UNKNOWN" : "FAILED",
-        err.code,
-        err.message,
-        payment.id,
+      unwrap(
+        await admin()
+          .from("payments")
+          .update({ status: unknownResult ? "UNKNOWN" : "FAILED", error_code: err.code, error_message: err.message })
+          .eq("id", payment.id),
+        "결제 실패 기록",
       );
-      if (cycle > 1) markPaymentFailure(sub);
-      else if (!unknownResult) await expireUnpaidSubscription(sub); // 첫 결제 실패: 구독을 활성화하지 않는다(PRD 4.2)
+      if (cycle > 1) await markPaymentFailure(sub);
+      else if (!unknownResult) await endSubscription(sub, "expired", "구독 만료로 잔여 크레딧 만료"); // 첫 결제 실패: 구독을 활성화하지 않는다(PRD 4.2)
       return { ok: false, code: err.code, message: err.message, unknown: unknownResult };
     }
+
+    // 결제 상태·구독 기간·크레딧 갱신을 DB 함수 하나에서 원자적으로 반영한다.
+    const applied = await admin().rpc("apply_payment_success", {
+      p_payment_id: payment.id,
+      p_payment_key: res.paymentKey,
+      p_receipt_url: res.receipt?.url ?? null,
+      p_approved_at: res.approvedAt ?? null,
+    });
+    if (applied.error) {
+      // 승인은 됐지만 반영에 실패: UNKNOWN으로 두면 다음 실행 때 같은 orderId로 재요청해 결과를 다시 받아 반영한다.
+      await admin()
+        .from("payments")
+        .update({ status: "UNKNOWN", error_code: "APPLY_FAILED", error_message: applied.error.message })
+        .eq("id", payment.id);
+      console.error("[billing] 결제 반영 실패", applied.error.message);
+      return { ok: false, code: "APPLY_FAILED", message: "결제는 승인되었지만 반영에 실패했습니다. 잠시 후 다시 확인합니다.", unknown: true };
+    }
+    return { ok: true };
   } finally {
-    db.prepare("UPDATE subscriptions SET billing_lock_until = NULL WHERE id = ?").run(subscriptionId);
+    await admin().rpc("release_billing_lock", { p_subscription_id: subscriptionId });
   }
 }
 
-async function expireUnpaidSubscription(sub: Subscription) {
-  db.prepare(
-    `UPDATE subscriptions SET status = 'expired', ended_at = ?, next_billing_at = NULL, billing_key_enc = NULL, updated_at = ? WHERE id = ?`,
-  ).run(nowIso(), nowIso(), sub.id);
-  expireRemaining(sub.user_id, sub.id, "구독 만료로 잔여 크레딧 만료");
-  await safeDeleteBillingKey(sub.billing_key_enc);
-}
-
-function markPaymentFailure(sub: Subscription) {
+async function markPaymentFailure(sub: Subscription) {
   const retry = sub.retry_count + 1;
   if (retry > RETRY_DELAYS_DAYS.length) {
-    db.prepare(
-      `UPDATE subscriptions SET status = 'expired', retry_count = ?, next_billing_at = NULL, ended_at = ?, updated_at = ? WHERE id = ?`,
-    ).run(retry, nowIso(), nowIso(), sub.id);
-    void expireUnpaidSubscription(sub);
+    await updateSubscription(sub.id, { retry_count: retry }, "재시도 횟수 기록");
+    await endSubscription(sub, "expired", "구독 만료로 잔여 크레딧 만료");
     return;
   }
-  db.prepare(
-    `UPDATE subscriptions SET status = 'past_due', retry_count = ?, next_billing_at = ?, updated_at = ? WHERE id = ?`,
-  ).run(retry, addDays(nowIso(), RETRY_DELAYS_DAYS[retry - 1]), nowIso(), sub.id);
+  await updateSubscription(
+    sub.id,
+    { status: "past_due", retry_count: retry, next_billing_at: addDays(nowIso(), RETRY_DELAYS_DAYS[retry - 1]) },
+    "미납 전환",
+  );
 }
 
 /** 정기결제 스케줄러: 기간 종료된 해지 예정 구독을 정리하고, 결제일이 된 구독을 결제한다. */
 export async function runBillingScheduler() {
   const now = nowIso();
-  const ending = db
-    .prepare("SELECT * FROM subscriptions WHERE status = 'cancel_at_period_end' AND period_end <= ?")
-    .all(now) as Subscription[];
+  const ending = unwrap(
+    await admin().from("subscriptions").select("*").eq("status", "cancel_at_period_end").lte("period_end", now),
+    "해지 예정 구독 조회",
+  ) as Subscription[];
   for (const sub of ending) {
-    db.prepare(
-      `UPDATE subscriptions SET status = 'canceled', ended_at = ?, next_billing_at = NULL, billing_key_enc = NULL, updated_at = ? WHERE id = ?`,
-    ).run(now, now, sub.id);
-    expireRemaining(sub.user_id, sub.id, "구독 해지로 잔여 크레딧 만료");
-    await safeDeleteBillingKey(sub.billing_key_enc);
+    await endSubscription(sub, "canceled", "구독 해지로 잔여 크레딧 만료");
   }
 
-  const due = db
-    .prepare("SELECT id FROM subscriptions WHERE status IN ('pending', 'active', 'past_due') AND next_billing_at <= ?")
-    .all(now) as { id: string }[];
+  const due = unwrap(
+    await admin()
+      .from("subscriptions")
+      .select("id")
+      .in("status", ["pending", "active", "past_due"])
+      .lte("next_billing_at", now),
+    "결제 대상 조회",
+  );
   const results = [];
   for (const { id } of due) {
     results.push({ id, ...(await chargeSubscription(id)) });
@@ -280,43 +326,36 @@ export async function runBillingScheduler() {
 }
 
 export async function cancelSubscription(userId: string): Promise<ActionResult> {
-  const sub = getCurrentSubscription(userId);
+  const sub = await getCurrentSubscription(userId);
   if (!sub || TERMINAL.includes(sub.status)) return { ok: false, code: "NO_SUBSCRIPTION", message: "해지할 구독이 없습니다." };
-  const now = nowIso();
   if (sub.status === "active") {
-    db.prepare(
-      `UPDATE subscriptions SET status = 'cancel_at_period_end', cancel_requested_at = ?, updated_at = ? WHERE id = ?`,
-    ).run(now, now, sub.id);
+    unwrap(
+      await admin()
+        .from("subscriptions")
+        .update({ status: "cancel_at_period_end", cancel_requested_at: nowIso(), updated_at: nowIso() })
+        .eq("id", sub.id)
+        .eq("status", "active"),
+      "해지 예약",
+    );
     return { ok: true, message: "해지 예약되었습니다. 현재 기간 종료일까지 이용할 수 있습니다." };
   }
   // 미납·대기 상태는 남은 이용 기간이 없으므로 즉시 해지한다.
-  db.prepare(
-    `UPDATE subscriptions SET status = 'canceled', cancel_requested_at = ?, ended_at = ?, next_billing_at = NULL,
-       billing_key_enc = NULL, updated_at = ? WHERE id = ?`,
-  ).run(now, now, now, sub.id);
-  expireRemaining(userId, sub.id, "구독 해지로 잔여 크레딧 만료");
-  await safeDeleteBillingKey(sub.billing_key_enc);
+  await endSubscription(sub, "canceled", "구독 해지로 잔여 크레딧 만료", true);
   return { ok: true, message: "구독이 해지되었습니다." };
 }
 
-export function resumeSubscription(userId: string): ActionResult {
-  const sub = getCurrentSubscription(userId);
+export async function resumeSubscription(userId: string): Promise<ActionResult> {
+  const sub = await getCurrentSubscription(userId);
   if (!sub || sub.status !== "cancel_at_period_end") return { ok: false, code: "NOT_CANCELING", message: "해지 예정인 구독이 없습니다." };
-  db.prepare(
-    `UPDATE subscriptions SET status = 'active', cancel_requested_at = NULL, updated_at = ? WHERE id = ?`,
-  ).run(nowIso(), sub.id);
+  await updateSubscription(sub.id, { status: "active", cancel_requested_at: null }, "구독 재개");
   return { ok: true, message: "구독을 계속 이용합니다." };
 }
 
 /** 테스트 전용: 다음 결제일(해지 예정이면 기간 종료일)을 지금으로 당긴다. */
-export function devMakeDue(userId: string): ActionResult {
-  const sub = getCurrentSubscription(userId);
+export async function devMakeDue(userId: string): Promise<ActionResult> {
+  const sub = await getCurrentSubscription(userId);
   if (!sub || TERMINAL.includes(sub.status)) return { ok: false, code: "NO_SUBSCRIPTION", message: "구독이 없습니다." };
   const past = new Date(Date.now() - 1000).toISOString();
-  if (sub.status === "cancel_at_period_end") {
-    db.prepare("UPDATE subscriptions SET period_end = ?, next_billing_at = ? WHERE id = ?").run(past, past, sub.id);
-  } else {
-    db.prepare("UPDATE subscriptions SET next_billing_at = ?, period_end = ? WHERE id = ?").run(past, past, sub.id);
-  }
+  await updateSubscription(sub.id, { next_billing_at: past, period_end: past }, "결제일 당기기");
   return { ok: true, message: "결제일을 현재 시각으로 당겼습니다." };
 }

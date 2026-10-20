@@ -19,13 +19,13 @@ const PAYMENT_STATUS: Record<string, string> = {
 async function SubscriptionPageContent({ searchParams }: PageProps<"/subscription">) {
   const { msg, err } = await searchParams;
   const user = await requireUser();
-  const sub = getCurrentSubscription(user.id);
-  const plan = sub ? getPlan(sub.plan_id) : undefined;
+  const sub = await getCurrentSubscription(user.id);
+  const plan = sub ? await getPlan(sub.plan_id) : undefined;
   const live = sub && !["canceled", "expired"].includes(sub.status);
-  const balance = getBalance(user.id);
-  const granted = getCurrentGrant(user.id);
-  const payments = listPayments(user.id);
-  const ledger = listLedger(user.id, 15);
+  const balance = await getBalance(user.id);
+  const granted = await getCurrentGrant(user.id);
+  const payments = await listPayments(user.id);
+  const ledger = await listLedger(user.id, 15);
 
   return (
     <main>

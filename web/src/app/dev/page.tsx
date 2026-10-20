@@ -11,7 +11,7 @@ import { SubmitButton } from "../components/SubmitButton";
 async function DevPageContent({ searchParams }: PageProps<"/dev">) {
   const { msg, err } = await searchParams;
   const user = await requireUser();
-  const sub = getCurrentSubscription(user.id);
+  const sub = await getCurrentSubscription(user.id);
   const testMode = isTestMode();
 
   return (

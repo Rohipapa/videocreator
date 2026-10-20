@@ -12,10 +12,10 @@ import { SubmitButton } from "../components/SubmitButton";
 async function GeneratePageContent({ searchParams }: PageProps<"/generate">) {
   const { err } = await searchParams;
   const user = await requireUser();
-  const sub = getCurrentSubscription(user.id);
-  const plan = sub ? getPlan(sub.plan_id) : undefined;
+  const sub = await getCurrentSubscription(user.id);
+  const plan = sub ? await getPlan(sub.plan_id) : undefined;
   const allowed = canGenerate(sub?.status);
-  const balance = getBalance(user.id);
+  const balance = await getBalance(user.id);
 
   return (
     <main className="narrow">

@@ -9,8 +9,8 @@ import { won } from "../components/format";
 
 async function PlansPageContent() {
   const user = await getCurrentUser();
-  const plans = getPlans();
-  const sub = user ? getCurrentSubscription(user.id) : undefined;
+  const plans = await getPlans();
+  const sub = user ? await getCurrentSubscription(user.id) : undefined;
   const subscribed = sub && !["canceled", "expired"].includes(sub.status);
 
   return (

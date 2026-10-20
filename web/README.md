@@ -5,22 +5,24 @@
 | 영역 | 테스트 환경 구현 | 운영 전환 시 교체 |
 |---|---|---|
 | 결제 | 토스페이먼츠 v2 자동결제(빌링) 결제창 + 서버 API (실제 연동) | 라이브 키로 교체 (자동결제 계약 필요) |
-| 정기결제 | `POST /api/cron/billing` + 테스트 도구 화면 | 외부 cron이 매일 호출 |
-| DB | 로컬 SQLite (`data/app.db`, Node 내장 `node:sqlite`) | Postgres 등 |
-| 로그인 | 이메일만 입력하는 간이 로그인 | 이메일 인증이 있는 인증 서비스 |
+| 정기결제 | `POST /api/cron/billing` + 테스트 도구 화면 | Supabase Cron(`pg_cron`)이 매일 호출 (배포 후 설정) |
+| DB | Supabase Postgres + RLS + DB 함수(RPC). 스키마는 `../supabase/migrations` | — |
+| 로그인 | Supabase Auth 이메일 매직링크·OTP. 개발 서버에서는 메일 없는 테스트 로그인 버튼 제공 | 외부 SMTP 연결 |
 | 동영상 생성 | 모의 제공자 (약 10초 후 완료, 프롬프트에 `[실패]`를 넣으면 실패) | 실제 AI 동영상 API |
 
 ## 실행 방법
 
 1. 토스페이먼츠 개발자센터에 가입하고 [API 키](https://developers.tosspayments.com/my/api-keys) 메뉴에서 **API 개별 연동 키**의 테스트 키를 확인합니다. 결제위젯 연동 키가 아닌 키를 써야 합니다.
 2. `.env.local`의 `NEXT_PUBLIC_TOSS_CLIENT_KEY`(`test_ck_…`)와 `TOSS_SECRET_KEY`(`test_sk_…`)를 채웁니다. `BILLING_KEY_SECRET`과 `CRON_SECRET`은 이미 무작위 값으로 생성되어 있습니다. 항목 설명은 `.env.example`을 참고하세요.
-3. 개발 서버를 실행합니다.
+3. Supabase 대시보드 **Project Settings → API Keys → Secret keys**에서 시크릿 키(`sb_secret_…`)를 복사해 `.env.local`의 `SUPABASE_SECRET_KEY`에 넣습니다. URL과 publishable 키는 이미 들어 있습니다.
+4. (메일 로그인을 쓸 때) 대시보드 **Authentication → URL Configuration**에 `http://localhost:3000`을 사이트 URL·리디렉트 허용 목록으로 등록하고, Magic Link 메일 템플릿의 링크를 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`로 바꿉니다. 템플릿을 바꾸지 않아도 같은 브라우저에서 링크를 열면 로그인됩니다.
+5. 개발 서버를 실행합니다.
 
 ```bash
 npm run dev
 ```
 
-4. http://localhost:3000 에서 로그인 → 요금제 → **카드 등록하고 구독 시작**을 누릅니다. 테스트 결제창에서 카드번호를 입력하고, 본인인증 번호는 `000000`을 입력합니다.
+6. http://localhost:3000 에서 로그인(개발 서버에서는 **테스트 로그인** 버튼으로 메일 없이 가능) → 요금제 → **카드 등록하고 구독 시작**을 누릅니다. 테스트 결제창에서 카드번호를 입력하고, 본인인증 번호는 `000000`을 입력합니다.
 
 ## 테스트 시나리오
 
@@ -41,6 +43,8 @@ npm run dev
 - 네트워크 오류처럼 결과를 알 수 없는 결제는 `UNKNOWN`으로 기록하고, 다음 실행 때 같은 `orderId`로 다시 요청합니다.
 - 결제 실패 시 `past_due`로 바꾸고 1일, 3일 뒤 재시도합니다. 모두 실패하면 `expired`로 바꾸고 빌링키를 삭제합니다.
 - 크레딧은 원장(`credit_ledger`)에 지급·예약·해제·확정·만료를 기록합니다. 미사용 크레딧은 이월하지 않습니다.
+- 데이터 쓰기는 서버의 Supabase 시크릿 키 클라이언트(`src/lib/supabase/admin.ts`)로만 합니다. 사용자 역할은 RLS로 본인 데이터 조회만 가능하고, `subscriptions.billing_key_enc`는 조회 권한도 없습니다.
+- 여러 테이블을 함께 바꾸는 작업(생성 요청+크레딧 예약, 결제 성공 반영+크레딧 갱신, 구독 종료+크레딧 만료, 결제 잠금)은 Postgres 함수(RPC)가 한 트랜잭션으로 처리하며 `service_role`만 실행할 수 있습니다.
 
 ## 영상 출처
 
@@ -62,6 +66,6 @@ npm run dev
 ## 운영 전 남은 일
 
 - 토스페이먼츠 자동결제 계약과 라이브 키 전환
-- 실제 인증 서비스와 운영 DB로 교체
+- Supabase Cron 설정(배포 후), 외부 SMTP 연결
 - 실제 AI 동영상 제공자 연동 및 파일 저장소, 만료형 다운로드 URL
 - 토스페이먼츠 웹훅 수신(결제 취소·환불 동기화), 관리자 화면

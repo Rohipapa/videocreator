@@ -25,6 +25,11 @@ export function isTestMode(): boolean {
   return (process.env.TOSS_SECRET_KEY ?? "").startsWith("test_");
 }
 
+/** 메일 없이 로그인하는 테스트 로그인 허용 여부: 테스트 키 + 개발 서버(next dev)일 때만. */
+export function devLoginAllowed(): boolean {
+  return isTestMode() && process.env.NODE_ENV === "development";
+}
+
 async function call<T>(
   method: "POST" | "DELETE",
   path: string,

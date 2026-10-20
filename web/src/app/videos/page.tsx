@@ -11,8 +11,8 @@ import { Scene, sceneFor } from "../components/Scene";
 async function VideosPageContent({ searchParams }: PageProps<"/videos">) {
   const { msg, err, status } = await searchParams;
   const user = await requireUser();
-  advanceMockJobs(user.id);
-  const all = listJobs(user.id);
+  await advanceMockJobs(user.id);
+  const all = await listJobs(user.id);
   const jobs = typeof status === "string" ? all.filter((j) => j.status === status) : all;
   const inFlight = all.some((j) => j.status === "queued" || j.status === "processing");
 
