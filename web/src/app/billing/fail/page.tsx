@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../../components/Loading";
 import Link from "next/link";
@@ -8,6 +9,8 @@ const MESSAGES: Record<string, string> = {
   REJECT_CARD_COMPANY: "카드사에서 등록을 거절했습니다. 카드 정보를 확인해 주세요.",
   NOT_SUPPORTED_METHOD: "자동결제 계약이 되어 있지 않은 키입니다. API 개별 연동 키를 사용했는지 확인해 주세요.",
 };
+
+export const metadata: Metadata = { title: "카드 등록 실패", robots: { index: false, follow: false } };
 
 async function BillingFailPageContent({ searchParams }: PageProps<"/billing/fail">) {
   const { code, message } = await searchParams;

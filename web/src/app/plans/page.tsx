@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import Link from "next/link";
@@ -6,6 +7,13 @@ import { getCurrentSubscription, getPlans } from "@/lib/billing";
 import { creditCost } from "@/lib/generation";
 import { BillingButton } from "../components/BillingButton";
 import { won } from "../components/format";
+
+export const metadata: Metadata = {
+  title: "요금제",
+  description: "AI 비디오 스튜디오 요금제: 베이직 월 9,900원(300 크레딧, 최대 5초), 프로 월 29,900원(1,200 크레딧, 최대 10초). 카드 자동결제, 언제든 해지.",
+  alternates: { canonical: "/plans" },
+  openGraph: { url: "/plans" },
+};
 
 async function PlansPageContent() {
   const user = await getCurrentUser();

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import Link from "next/link";
@@ -7,6 +8,8 @@ import { AutoRefresh } from "../components/AutoRefresh";
 import { Flash } from "../components/Flash";
 import { dateTime } from "../components/format";
 import { Scene, sceneFor } from "../components/Scene";
+
+export const metadata: Metadata = { title: "내 영상", robots: { index: false, follow: false } };
 
 async function VideosPageContent({ searchParams }: PageProps<"/videos">) {
   const { msg, err, status } = await searchParams;

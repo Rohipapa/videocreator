@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { FAQ, jsonLd, PLAN_SUMMARY, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { AutoVideo } from "./components/AutoVideo";
 import { HeroDemo } from "./components/HeroDemo";
 
@@ -19,6 +21,58 @@ const FEATURES = [
   { icon: "⛨", title: "안전한 자동결제", body: "카드 정보는 토스페이먼츠 결제창에서만 입력되고 서비스에 저장되지 않습니다." },
 ];
 
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
+};
+
+// 검색엔진·AI 답변 엔진용 구조화 데이터. FAQ는 화면의 "자주 묻는 질문"과 같은 내용이다.
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@graph": [
+    { "@type": "Organization", "@id": `${SITE_URL}/#organization`, name: SITE_NAME, url: SITE_URL, logo: `${SITE_URL}/opengraph-image` },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      inLanguage: "ko-KR",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: SITE_NAME,
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      applicationCategory: "MultimediaApplication",
+      operatingSystem: "Web",
+      inLanguage: "ko-KR",
+      publisher: { "@id": `${SITE_URL}/#organization` },
+      offers: PLAN_SUMMARY.map((p) => ({
+        "@type": "Offer",
+        name: `${p.name} 요금제 (월 ${p.credits} 크레딧, 최대 ${p.maxDuration}초 영상)`,
+        price: p.price,
+        priceCurrency: "KRW",
+        url: `${SITE_URL}/plans`,
+      })),
+    },
+    {
+      "@type": "HowTo",
+      name: "텍스트로 AI 영상 만드는 방법",
+      step: [
+        { "@type": "HowToStep", position: 1, name: "장면을 글로 설명", text: "인물, 배경, 분위기, 카메라 움직임을 자연스럽게 적습니다." },
+        { "@type": "HowToStep", position: 2, name: "비율과 길이 선택", text: "16:9·9:16·1:1 중 화면 비율과 5초·10초 중 길이를 고르면 필요한 크레딧이 표시됩니다." },
+        { "@type": "HowToStep", position: 3, name: "확인하고 다운로드", text: "생성이 끝나면 내 영상에서 재생하고 내려받습니다." },
+      ],
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: FAQ.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+    },
+  ],
+};
+
 function PlayMark() {
   return (
     <svg viewBox="0 0 10 12" aria-hidden="true">
@@ -31,6 +85,7 @@ export default function Home() {
   const loop = [...GALLERY, ...GALLERY]; // 끊김 없이 흐르도록 두 번 이어 붙인다.
   return (
     <main className="landing">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(STRUCTURED_DATA) }} />
       {/* 히어로 */}
       <section className="section hero">
         <div className="hero-copy">
@@ -172,6 +227,24 @@ export default function Home() {
               <h3>{f.title}</h3>
               <p>{f.body}</p>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 자주 묻는 질문: 답변 엔진이 그대로 인용할 수 있게 질문마다 한두 문장으로 답한다. */}
+      <section className="section" style={{ paddingTop: 0 }} aria-labelledby="faq-title">
+        <div className="section-head">
+          <span className="kicker grad-text">FAQ</span>
+          <h2 id="faq-title">자주 묻는 질문</h2>
+        </div>
+        <div className="faq">
+          {FAQ.map((f) => (
+            <details key={f.q}>
+              <summary>
+                <h3>{f.q}</h3>
+              </summary>
+              <p>{f.a}</p>
+            </details>
           ))}
         </div>
       </section>

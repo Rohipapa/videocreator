@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import Link from "next/link";
@@ -8,6 +9,8 @@ import { ASPECT_RATIOS, creditCost, DURATIONS, FAIL_TRIGGER } from "@/lib/genera
 import { createJobAction } from "../actions";
 import { Flash } from "../components/Flash";
 import { SubmitButton } from "../components/SubmitButton";
+
+export const metadata: Metadata = { title: "동영상 만들기", robots: { index: false, follow: false } };
 
 async function GeneratePageContent({ searchParams }: PageProps<"/generate">) {
   const { err } = await searchParams;

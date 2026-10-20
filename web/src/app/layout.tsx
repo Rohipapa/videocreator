@@ -1,14 +1,42 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
+import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE, SITE_URL, SITE_VERIFICATION } from "@/lib/site";
 import { isTestMode } from "@/lib/toss";
 import { logoutAction } from "./actions";
 import "./globals.css";
 
+// 페이지별 canonical은 각 페이지에서 지정한다(레이아웃에 두면 모든 페이지가 첫 화면을 가리킨다).
 export const metadata: Metadata = {
-  title: "AI 비디오 스튜디오 — 글로 쓰면 영상이 되는 AI 영상 생성기",
-  description: "텍스트 프롬프트만으로 쇼츠·광고·상품 소개 영상을 만드는 AI 영상 생성 구독 서비스",
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: SITE_KEYWORDS,
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+  },
+  formatDetection: { telephone: false, email: false, address: false },
+  verification: {
+    google: SITE_VERIFICATION.google || undefined,
+    other: SITE_VERIFICATION.naver ? { "naver-site-verification": SITE_VERIFICATION.naver } : undefined,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#08080c",
+  colorScheme: "dark",
 };
 
 // 세션을 읽는 부분만 Suspense 안에서 요청 시점에 렌더링한다(Cache Components).

@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import { devLoginAllowed } from "@/lib/toss";
 import { loginAction, verifyCodeAction } from "../actions";
 import { Flash } from "../components/Flash";
 import { SubmitButton } from "../components/SubmitButton";
+
+export const metadata: Metadata = { title: "로그인", robots: { index: false, follow: false } };
 
 async function LoginPageContent({ searchParams }: PageProps<"/login">) {
   const { err, next, sent } = await searchParams;

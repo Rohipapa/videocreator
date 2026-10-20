@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import Link from "next/link";
@@ -15,6 +16,8 @@ const PAYMENT_STATUS: Record<string, string> = {
   IN_PROGRESS: "처리 중",
   UNKNOWN: "결과 확인 중",
 };
+
+export const metadata: Metadata = { title: "구독 관리", robots: { index: false, follow: false } };
 
 async function SubscriptionPageContent({ searchParams }: PageProps<"/subscription">) {
   const { msg, err } = await searchParams;

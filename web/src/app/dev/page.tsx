@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import { requireUser } from "@/lib/auth";
@@ -7,6 +8,8 @@ import { devMakeDueAction, devRunSchedulerAction } from "../actions";
 import { Flash } from "../components/Flash";
 import { dateTime } from "../components/format";
 import { SubmitButton } from "../components/SubmitButton";
+
+export const metadata: Metadata = { title: "테스트 도구", robots: { index: false, follow: false } };
 
 async function DevPageContent({ searchParams }: PageProps<"/dev">) {
   const { msg, err } = await searchParams;
