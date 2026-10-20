@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 저장소 구성
 
-- `ai_video_subscription_prd.md`: 제품 요구사항(PRD v1.1). 구독 상태별 허용 기준, 크레딧 정책, 결제 흐름의 기준 문서입니다. 정책을 바꾸면 이 문서도 함께 고칩니다.
+- `PRD.md`: 제품 요구사항(v1.2). 구독 상태별 허용 기준, 크레딧 정책, 결제 흐름, Supabase 연동 범위(8.2~8.4, 7.7), 현재 구현 현황(17장)의 기준 문서입니다. 정책이나 구현 상태가 바뀌면 이 문서도 함께 고칩니다.
 - `web/`: Next.js 16(App Router, TypeScript) 앱. PRD의 MVP 중 **토스페이먼츠 자동결제(빌링) 구독**과 **크레딧 기반 생성 흐름**을 테스트 키로 검증하는 테스트 환경입니다.
 - `.mcp.json`: 토스페이먼츠 연동 가이드 MCP(`@tosspayments/integration-guide-mcp`). 토스 API·SDK 사용법은 기억에 의존하지 말고 이 MCP로 확인합니다.
+- Supabase: 프로젝트 `videocreator`(ID `wucxicyzydzwqtvmuaza`, 서울 리전). Supabase MCP로 스키마 변경(`apply_migration`)과 문서 검색(`search_docs`)을 합니다. 같은 조직의 `moosin-shop` 프로젝트는 **다른 서비스**이므로 건드리지 않습니다.
 - 원격 저장소: https://github.com/Rohipapa/videocreator (공개 저장소, 브랜치 `main`)
 
 ## 명령어
@@ -20,7 +21,7 @@ npx eslint src       # 린트
 npx tsc --noEmit     # 타입 검사만
 ```
 
-- 환경변수는 `web/.env.local`(커밋 금지, `.env.example` 참고): `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `BILLING_KEY_SECRET`(base64 32바이트), `CRON_SECRET`, 선택 `TOSS_API_BASE`.
+- 환경변수는 `web/.env.local`(커밋 금지, `.env.example` 참고): `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `BILLING_KEY_SECRET`(base64 32바이트), `CRON_SECRET`, 선택 `TOSS_API_BASE`. Supabase 전환 후에는 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`가 추가됩니다.
 - 이 PC(Windows)는 Node.js·Git을 winget으로 설치했습니다. 셸에서 `node`/`git`을 못 찾으면 PATH를 다시 읽습니다: `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`
 
 ## Next.js 16 주의사항 (`web/AGENTS.md`)
@@ -61,6 +62,18 @@ npx tsc --noEmit     # 타입 검사만
 - `components/HeroDemo.tsx`: 프롬프트 타이핑 → 생성(블러가 걷힘) → 재생을 반복하는 데모. `components/AutoVideo.tsx`는 화면에 보일 때만 재생하고 `prefers-reduced-motion`이면 재생하지 않습니다.
 - `web/public/videos/`의 예시 영상은 AI 결과물이 아닌 무료 스톡 영상(Mixkit Free License, Pixabay Content License)이므로 화면에 "AI 생성"이라고 표기하지 않습니다. 출처 목록은 `web/README.md`의 "영상 출처"에 있고, 영상을 추가·교체하면 그 표도 갱신합니다.
 - `components/Scene.tsx`: CSS로 그린 장면. 지금은 내 영상 라이브러리의 모의 결과 미리보기에만 씁니다.
+
+## Supabase 전환 (진행 중)
+
+현재 코드는 아직 로컬 SQLite와 간이 로그인을 씁니다. 전환 순서와 설계는 `PRD.md` 8.2~8.4, 7.7을 따릅니다. 진행할 때 지킬 점:
+
+- **순서**: Database + RLS + RPC → Auth → Cron → Storage → Realtime·관리자. 각 단계 후에도 아래 "결제 로직 검증 방법"의 시나리오가 그대로 통과해야 합니다.
+- **DB 접근**: 결제·빌링키·크레딧 쓰기는 서버에서 Supabase 시크릿 키(`SUPABASE_SECRET_KEY`) 클라이언트로만 합니다. 사용자 역할에는 쓰기 정책을 주지 않고, `subscriptions.billing_key_enc` 컬럼 조회 권한을 회수합니다.
+- **원자성**: 지금 `transaction()`으로 묶인 작업(생성 요청의 잔액 확인+예약, 결제 성공 반영+크레딧 갱신, 결제 잠금)은 supabase-js에 트랜잭션이 없으므로 Postgres 함수(RPC, `security definer`, 실행 권한은 `service_role`만)로 옮깁니다.
+- **`lib/` 함수가 비동기로 바뀝니다**: 지금 동기 함수인 `getBalance`, `getCurrentSubscription`, `advanceMockJobs` 등을 쓰는 페이지·액션에 `await`를 추가해야 합니다.
+- **Auth**: `@supabase/ssr`로 서버 클라이언트(`cookies()` 기반)와 `proxy.ts`(Next.js 16의 미들웨어, `getClaims()`로 토큰 갱신)를 둡니다. 로그인 확인 전에 `connection()`을 호출하는 현재 규칙은 유지합니다. 서버 코드에서 권한 판단에는 `getSession()`이 아니라 `getClaims()`/`getUser()`를 씁니다.
+- 스키마를 바꾼 뒤에는 Supabase 보안 점검(`get_advisors`)으로 RLS 누락을 확인합니다.
+- 시크릿 키는 MCP로 가져올 수 없으므로 사용자가 대시보드에서 복사해 `web/.env.local`에 넣어야 합니다. 인증 메일 템플릿 변경, SMTP 연결도 대시보드 작업입니다.
 
 ## 결제 로직 검증 방법
 
