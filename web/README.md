@@ -1,5 +1,7 @@
 # AI 비디오 스튜디오 — 테스트 환경
 
+배포 주소: https://videocreator-tau.vercel.app (Vercel, `main` push 시 자동 배포)
+
 [PRD v1.2](../PRD.md)의 MVP 중 **구독 결제(토스페이먼츠 자동결제)**와 **크레딧 기반 생성 흐름**을 테스트 키로 검증하는 앱입니다.
 
 | 영역 | 테스트 환경 구현 | 운영 전환 시 교체 |
@@ -15,7 +17,7 @@
 1. 토스페이먼츠 개발자센터에 가입하고 [API 키](https://developers.tosspayments.com/my/api-keys) 메뉴에서 **API 개별 연동 키**의 테스트 키를 확인합니다. 결제위젯 연동 키가 아닌 키를 써야 합니다.
 2. `.env.local`의 `NEXT_PUBLIC_TOSS_CLIENT_KEY`(`test_ck_…`)와 `TOSS_SECRET_KEY`(`test_sk_…`)를 채웁니다. `BILLING_KEY_SECRET`과 `CRON_SECRET`은 이미 무작위 값으로 생성되어 있습니다. 항목 설명은 `.env.example`을 참고하세요.
 3. Supabase 대시보드 **Project Settings → API Keys → Secret keys**에서 시크릿 키(`sb_secret_…`)를 복사해 `.env.local`의 `SUPABASE_SECRET_KEY`에 넣습니다. URL과 publishable 키는 이미 들어 있습니다.
-4. (메일 로그인을 쓸 때) 대시보드 **Authentication → URL Configuration**에 `http://localhost:3000`을 사이트 URL·리디렉트 허용 목록으로 등록하고, Magic Link 메일 템플릿의 링크를 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`로 바꿉니다. 템플릿을 바꾸지 않아도 같은 브라우저에서 링크를 열면 로그인됩니다.
+4. (메일 로그인) 대시보드 **Authentication → URL Configuration**의 Redirect URLs에는 `http://localhost:3000/**`와 배포 주소가 이미 등록되어 있습니다. 다른 기기에서 연 메일 링크로도 로그인되게 하려면 Magic Link 메일 템플릿의 링크를 `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email`로 바꿉니다. 템플릿을 바꾸지 않아도 같은 브라우저에서 링크를 열면 로그인됩니다.
 5. 개발 서버를 실행합니다.
 
 ```bash

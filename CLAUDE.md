@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `.mcp.json`: 토스페이먼츠 연동 가이드 MCP(`@tosspayments/integration-guide-mcp`). 토스 API·SDK 사용법은 기억에 의존하지 말고 이 MCP로 확인합니다.
 - Supabase: 프로젝트 `videocreator`(ID `wucxicyzydzwqtvmuaza`, 서울 리전). Supabase MCP로 스키마 변경(`apply_migration`)과 문서 검색(`search_docs`)을 합니다. 적용한 마이그레이션은 같은 이름·버전으로 `supabase/migrations/`에도 SQL 파일로 남기고, 스키마를 바꾸면 `generate_typescript_types` 결과로 `web/src/lib/supabase/database.types.ts`를 갱신합니다. 같은 조직의 `moosin-shop` 프로젝트는 **다른 서비스**이므로 건드리지 않습니다.
 - 원격 저장소: https://github.com/Rohipapa/videocreator (공개 저장소, 브랜치 `main`)
+- 배포: Vercel, https://videocreator-tau.vercel.app (아래 "배포" 참고)
 
 ## 명령어
 
@@ -75,8 +76,18 @@ npx tsc --noEmit     # 타입 검사만
 - **원자성**: supabase-js에는 트랜잭션이 없으므로, 두 개 이상의 쓰기가 함께 성공해야 하는 작업은 RPC로 만듭니다. 새 함수는 `security definer`, `set search_path = ''`, `public`/`anon`/`authenticated` 실행 권한 회수 후 `service_role`에만 부여합니다.
 - 서버 코드에서 권한 판단에는 `getSession()`이 아니라 `getClaims()`/`getUser()`를 씁니다.
 - 스키마를 바꾼 뒤에는 Supabase 보안 점검(`get_advisors`)으로 RLS 누락을 확인합니다.
-- Cron은 배포 URL이 생긴 뒤 `pg_cron` + `pg_net`으로 `POST /api/cron/billing`(Bearer `CRON_SECRET`)을 매일 호출하도록 설정합니다.
+- Cron은 `pg_cron` + `pg_net`으로 `POST https://videocreator-tau.vercel.app/api/cron/billing`(Bearer `CRON_SECRET`)을 매일 호출하도록 설정합니다(아직 미설정).
 - 시크릿 키는 MCP로 가져올 수 없으므로 사용자가 대시보드에서 복사해 `web/.env.local`에 넣어야 합니다. 인증 메일 템플릿 변경, SMTP 연결도 대시보드 작업입니다.
+
+## 배포 (Vercel)
+
+- 사용자가 Vercel 대시보드에서 GitHub 저장소를 가져와 만든 프로젝트입니다. Root Directory는 `web`이고, `main`에 push하면 자동으로 다시 배포됩니다. push는 곧 배포이므로 사용자 확인을 받고 합니다.
+- 환경변수는 Vercel **Settings → Environment Variables**에서 사용자가 직접 넣습니다. `NEXT_PUBLIC_*`는 **Config** 유형으로만 저장됩니다(Secret으로 고르면 Vercel이 막습니다). 나머지(`SUPABASE_SECRET_KEY`, `TOSS_SECRET_KEY`, `BILLING_KEY_SECRET`, `CRON_SECRET`)는 Secret입니다. `BILLING_KEY_SECRET`은 로컬과 같은 DB를 쓰므로 `.env.local`과 같은 값이어야 합니다.
+- `NEXT_PUBLIC_*`는 빌드할 때 코드에 박히므로, 환경변수를 바꾼 뒤에는 **Redeploy**해야 반영됩니다.
+- 증상으로 원인 찾기: 모든 페이지가 500이고 `/api/cron/billing`만 401이면 proxy가 Supabase 공개 환경변수를 못 찾는 것입니다(cron 경로만 proxy matcher에서 빠져 있음). 첫 화면·로그인은 되고 요금제 화면만 오류면 `SUPABASE_SECRET_KEY`가 없거나 틀린 것입니다.
+- 이 PC는 호스트 이름이 한글(`공군10전투비행단-PC03`)이라 `vercel login`이 `ByteString` 오류로 실패합니다. CLI가 필요하면 사용자가 만든 `VERCEL_TOKEN`으로 씁니다.
+- Supabase **Authentication → URL Configuration**: Site URL은 `https://videocreator-tau.vercel.app`, Redirect URLs는 `https://videocreator-tau.vercel.app/**`, `http://localhost:3000/**`입니다. 허용 목록에 없는 주소로 로그인 링크를 요청하면 Supabase가 Site URL로 보냅니다. 도메인이 바뀌면 둘 다 고칩니다. 대시보드 설정은 MCP로 바꿀 수 없어서, 사용자가 브라우저 창에서 로그인한 뒤 바꿔야 합니다.
+- 매직링크 메일 템플릿은 아직 기본값이라, 로그인 링크를 요청한 브라우저에서 열어야 로그인됩니다.
 
 ## 결제 로직 검증 방법
 
