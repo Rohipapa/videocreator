@@ -15,13 +15,21 @@ async function PlansPageContent() {
 
   return (
     <main>
-      <h1>요금제</h1>
-      <p className="muted">
-        매월 같은 날 등록한 카드로 자동 결제되고, 결제할 때마다 크레딧이 새로 지급됩니다. 미사용 크레딧은 다음 달로 이월되지 않습니다.
-      </p>
+      <div className="page-head">
+        <h1>
+          만들고 싶은 만큼, <span className="grad-text">요금제를 고르세요</span>
+        </h1>
+        <p className="muted">
+          매월 같은 날 등록한 카드로 자동 결제되고, 결제할 때마다 크레딧이 새로 지급됩니다. 미사용 크레딧은 다음 달로 이월되지 않습니다.
+        </p>
+      </div>
       <div className="grid">
         {plans.map((plan) => (
-          <div key={plan.id} className={`card plan ${sub?.plan_id === plan.id && subscribed ? "current" : ""}`}>
+          <div
+            key={plan.id}
+            className={`card plan ${plan.id === "pro" ? "featured" : ""} ${sub?.plan_id === plan.id && subscribed ? "current" : ""}`}
+          >
+            {plan.id === "pro" && <span className="plan-tag">추천</span>}
             <h2>{plan.name}</h2>
             <p className="price">
               {won(plan.price)}

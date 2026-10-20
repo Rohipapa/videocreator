@@ -42,6 +42,23 @@ npm run dev
 - 결제 실패 시 `past_due`로 바꾸고 1일, 3일 뒤 재시도합니다. 모두 실패하면 `expired`로 바꾸고 빌링키를 삭제합니다.
 - 크레딧은 원장(`credit_ledger`)에 지급·예약·해제·확정·만료를 기록합니다. 미사용 크레딧은 이월하지 않습니다.
 
+## 영상 출처
+
+첫 화면의 예시 영상(`public/videos/`)은 AI가 생성한 결과물이 아닌 무료 스톡 영상입니다. 2026-10-20에 각 페이지에서 라이선스를 확인했습니다.
+
+| 파일 | 출처 | 라이선스 |
+|---|---|---|
+| `hero-landscape.mp4` | [Mixkit #51689](https://mixkit.co/free-stock-video/flying-over-a-monumental-rocky-mountain-with-visible-snow-and-51689/) | Mixkit Stock Video Free License |
+| `hero-dog.mp4` | [Pixabay #327638](https://pixabay.com/videos/border-collie-dog-running-fast-327638/) | Pixabay Content License |
+| `hero-car.mp4` | [Mixkit #52427](https://mixkit.co/free-stock-video/a-red-sports-car-traveling-along-a-curvy-asphalt-road-52427/) | Mixkit Stock Video Free License |
+| `hero-jet.mp4` | [Pixabay #284488](https://pixabay.com/videos/military-fighter-jet-flying-284488/) | Pixabay Content License |
+| `gallery-alps.mp4` | [Mixkit #4132](https://mixkit.co/free-stock-video/mountainous-area-in-the-alps-4132/) | Mixkit Stock Video Free License |
+| `gallery-canyon.mp4` | [Mixkit #41401](https://mixkit.co/free-stock-video/fly-over-a-huge-canyon-covered-in-vegetation-41401/) | Mixkit Stock Video Free License |
+| `gallery-cliff.mp4` | [Mixkit #51455](https://mixkit.co/free-stock-video/aerial-view-of-waves-hitting-a-small-cliff-51455/) | Mixkit Stock Video Free License |
+| `gallery-collies.mp4` | [Pixabay #7259](https://pixabay.com/videos/border-collies-dogs-pets-playing-7259/) | Pixabay Content License |
+| `gallery-redcar.mp4` | [Mixkit #74](https://mixkit.co/free-stock-video/red-sports-car-74/) | Mixkit Stock Video Free License |
+| `gallery-jet.mp4` | [Pixabay #33919](https://pixabay.com/videos/jet-fighter-jet-plane-flying-33919/) | Pixabay Content License |
+
 ## 운영 전 남은 일
 
 - 토스페이먼츠 자동결제 계약과 라이브 키 전환

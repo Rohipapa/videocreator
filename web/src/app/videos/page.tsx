@@ -6,6 +6,7 @@ import { advanceMockJobs, JOB_STATUS_LABEL, listJobs } from "@/lib/generation";
 import { AutoRefresh } from "../components/AutoRefresh";
 import { Flash } from "../components/Flash";
 import { dateTime } from "../components/format";
+import { Scene, sceneFor } from "../components/Scene";
 
 async function VideosPageContent({ searchParams }: PageProps<"/videos">) {
   const { msg, err, status } = await searchParams;
@@ -44,7 +45,12 @@ async function VideosPageContent({ searchParams }: PageProps<"/videos">) {
             <article key={job.id} className="card video">
               <div className={`preview ratio-${job.aspect_ratio.replace(":", "x")} ${job.status}`}>
                 {job.status === "completed" ? (
-                  <span>▶ 모의 결과 영상</span>
+                  <>
+                    <Scene name={sceneFor(job.id)} />
+                    <span className="play" aria-label="모의 결과 영상">
+                      ▶
+                    </span>
+                  </>
                 ) : job.status === "failed" ? (
                   <span>생성 실패</span>
                 ) : (
