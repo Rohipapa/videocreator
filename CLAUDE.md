@@ -42,7 +42,7 @@ npx tsc --noEmit     # 타입 검사만
 - `supabase/admin.ts`: 시크릿 키(service_role) 클라이언트 `admin()`과 `unwrap`/`unwrapMaybe`(오류면 예외). RLS를 우회하므로 모든 조회·쓰기에 사용자 ID 조건을 직접 겁니다. `supabase/server.ts`는 로그인 세션 전용(공개 키+쿠키), `supabase/proxy.ts`는 `src/proxy.ts`의 토큰 갱신.
 - 여러 테이블을 함께 바꾸는 작업은 Postgres 함수(RPC)로만 합니다: `create_generation_job`(사용자 잠금→멱등키→잔액→작업+예약), `complete_generation_job`, `apply_payment_success`(결제 DONE→기간·회차→만료→지급), `end_subscription`(해지·만료+빌링키 제거+크레딧 만료, 이전 빌링키 암호문 반환), `expire_remaining_credits`, `credit_balance`, `acquire/release_billing_lock`. 모두 `security definer`, 실행 권한은 `service_role`만.
 - `auth.ts`: Supabase Auth 이메일 매직링크·OTP. `getCurrentUser()`는 `connection()` → `getClaims()` → `profiles` 조회 순서입니다. `profiles`와 토스 `customerKey`(UUID)는 `auth.users` insert 트리거가 만듭니다. `devSignIn()`은 관리자 API `generateLink`로 메일 없이 로그인하며, `devLoginAllowed()`(테스트 키 + `next dev`)일 때만 로그인 화면에 노출합니다.
-- `toss.ts`: 토스페이먼츠 서버 API 래퍼(빌링키 발급·자동결제 승인·빌링키 삭제). 시크릿 키 Basic 인증, 승인 요청에는 `orderId`를 `Idempotency-Key`로 보냅니다. `TOSS_API_BASE`로 모의 서버를 가리킬 수 있습니다. `isTestMode()`는 시크릿 키가 `test_`로 시작하는지로 판단합니다.
+- `toss.ts`: 토스페이먼츠 서버 API 래퍼(빌링키 발급·자동결제 승인·빌링키 삭제). 시크릿 키 Basic 인증, 승인 요청에는 `orderId`를 `Idempotency-Key`로 보냅니다. `TOSS_API_BASE`로 모의 서버를 가리킬 수 있습니다. `isMockPayment()`는 `TOSS_SECRET_KEY`가 없을 때 참이며, 이때 토스 API 대신 서버 안의 모의 응답을 씁니다(빌링키 발급·승인·삭제, authKey `mock_auth_ok_…`/`mock_auth_fail_…`, fail 카드는 승인 때 `REJECT_CARD_PAYMENT`). `isTestMode()`는 가상 결제 모드이거나 시크릿 키가 `test_`로 시작하면 참입니다.
 - `billing.ts`: 구독 도메인의 핵심.
   - `handleBillingAuthSuccess`: 결제창 successUrl 이후 빌링키 발급 → 구독 생성(`pending`) → 첫 결제. 이미 이용 중인 구독이 있으면 **결제 카드 변경**으로 처리합니다.
   - `chargeSubscription`: 스케줄러와 첫 결제가 공유. DB 잠금(`acquire_billing_lock` RPC, `billing_lock_until`)으로 동시 실행 방지, `orderId = sub_{구독ID}_c{회차}_a{시도}`, (구독, 회차)당 DONE 결제는 부분 유니크 인덱스로 하나만 허용. 네트워크 오류·5xx, 처리 중 중단된 `IN_PROGRESS`, 승인 후 DB 반영 실패는 모두 결과 미확정으로 보고 다음 실행 때 **같은 orderId로 재요청**합니다.
@@ -58,7 +58,8 @@ npx tsc --noEmit     # 타입 검사만
 - `billing/success/route.ts`: 토스 결제창 successUrl(GET). 처리 후 즉시 `/subscription`으로 리다이렉트해 일회성 `authKey` 재사용을 막습니다. `billing/fail/page.tsx`는 failUrl.
 - `api/cron/billing/route.ts`: 외부 cron용 `POST`, `Authorization: Bearer {CRON_SECRET}` 필요.
 - `/dev`: 테스트 키일 때만 동작하는 도구(결제일을 지금으로 당기기, 스케줄러 즉시 실행). 한 달을 기다리지 않고 정기결제·해지 흐름을 확인할 때 씁니다.
-- `components/BillingButton.tsx`: 클라이언트에서 `@tosspayments/tosspayments-sdk`의 `requestBillingAuth({ method: "CARD" })`로 자동결제 등록창을 엽니다(클라이언트 키만 사용).
+- `billing/mock/page.tsx`: 가상 결제 모드 전용 결제창. 정상 카드·결제 실패 카드 중 고르면 토스 결제창과 같은 형식으로 `/billing/success`에 authKey를 넘깁니다. 가상 결제 모드가 아니면 `/plans`로 돌려보냅니다.
+- `components/BillingButton.tsx`: `mock` prop(서버에서 `isMockPayment()` 전달)이면 `/billing/mock`으로 이동하고, 아니면 클라이언트에서 `@tosspayments/tosspayments-sdk`의 `requestBillingAuth({ method: "CARD" })`로 자동결제 등록창을 엽니다(클라이언트 키만 사용).
 
 ### 첫 화면과 디자인
 
@@ -83,6 +84,7 @@ npx tsc --noEmit     # 타입 검사만
 
 - 사용자가 Vercel 대시보드에서 GitHub 저장소를 가져와 만든 프로젝트입니다. Root Directory는 `web`이고, `main`에 push하면 자동으로 다시 배포됩니다. push는 곧 배포이므로 사용자 확인을 받고 합니다.
 - 환경변수는 Vercel **Settings → Environment Variables**에서 사용자가 직접 넣습니다. `NEXT_PUBLIC_*`는 **Config** 유형으로만 저장됩니다(Secret으로 고르면 Vercel이 막습니다). 나머지(`SUPABASE_SECRET_KEY`, `TOSS_SECRET_KEY`, `BILLING_KEY_SECRET`, `CRON_SECRET`)는 Secret입니다. `BILLING_KEY_SECRET`은 로컬과 같은 DB를 쓰므로 `.env.local`과 같은 값이어야 합니다.
+- 지금 배포는 토스 키 없이 **가상 결제 모드**로 동작합니다. 그래도 `BILLING_KEY_SECRET`은 필요합니다(모의 빌링키도 암호화해 저장). 없으면 결제 시 `[CONFIG_ERROR]`가 표시되고, 빌링키 발급 전에 멈추므로 DB에는 아무것도 남지 않습니다. 실제 토스 테스트 키를 넣으면 가상 결제 모드는 자동으로 꺼집니다.
 - `NEXT_PUBLIC_*`는 빌드할 때 코드에 박히므로, 환경변수를 바꾼 뒤에는 **Redeploy**해야 반영됩니다.
 - 증상으로 원인 찾기: 모든 페이지가 500이고 `/api/cron/billing`만 401이면 proxy가 Supabase 공개 환경변수를 못 찾는 것입니다(cron 경로만 proxy matcher에서 빠져 있음). 첫 화면·로그인은 되고 요금제 화면만 오류면 `SUPABASE_SECRET_KEY`가 없거나 틀린 것입니다.
 - 이 PC는 호스트 이름이 한글(`공군10전투비행단-PC03`)이라 `vercel login`이 `ByteString` 오류로 실패합니다. CLI가 필요하면 사용자가 만든 `VERCEL_TOKEN`으로 씁니다.
