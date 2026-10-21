@@ -119,6 +119,14 @@ export async function handleBillingAuthSuccess(
   const current = await getCurrentSubscription(user.id);
   const hasLive = current && !TERMINAL.includes(current.status) && current.status !== "pending";
 
+  // 빌링키를 발급받은 뒤 암호화에 실패하면 저장할 곳 없는 빌링키가 남으므로, 암호화 키부터 확인한다.
+  try {
+    encrypt("check");
+  } catch (e) {
+    console.error("[billing] 빌링키 암호화 키 오류", (e as Error).message);
+    return { ok: false, code: "CONFIG_ERROR", message: "결제 설정 오류: 서버의 BILLING_KEY_SECRET이 없거나 형식이 잘못되었습니다." };
+  }
+
   let issued;
   try {
     issued = await issueBillingKey(params.authKey, params.customerKey);
