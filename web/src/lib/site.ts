@@ -22,7 +22,7 @@ export const SITE_KEYWORDS = [
 
 // 검색 콘솔 소유 확인 토큰(공개 값). 검색 콘솔에서 발급받아 채운다.
 export const SITE_VERIFICATION = {
-  google: "",
+  google: "OLVs2wW4_sCarjcEia0lEhiyT1QcNJu6viG1Ps-Gp60",
   naver: "",
 };
 
