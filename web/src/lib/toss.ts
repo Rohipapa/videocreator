@@ -21,13 +21,59 @@ function authHeader(): string {
   return "Basic " + Buffer.from(secret + ":").toString("base64");
 }
 
+/**
+ * 가상 결제 모드: 토스 시크릿 키가 없으면 토스 API 대신 서버 안의 모의 응답을 쓴다.
+ * 결제창도 내부 가상 결제창(/billing/mock)으로 바뀌고, 실제 결제는 일어나지 않는다.
+ * 테스트 키나 라이브 키를 넣으면 자동으로 꺼진다.
+ */
+export function isMockPayment(): boolean {
+  return !process.env.TOSS_SECRET_KEY;
+}
+
 export function isTestMode(): boolean {
-  return (process.env.TOSS_SECRET_KEY ?? "").startsWith("test_");
+  return isMockPayment() || (process.env.TOSS_SECRET_KEY ?? "").startsWith("test_");
 }
 
 /** 메일 없이 로그인하는 테스트 로그인 허용 여부: 테스트 키 + 개발 서버(next dev)일 때만. */
 export function devLoginAllowed(): boolean {
   return isTestMode() && process.env.NODE_ENV === "development";
+}
+
+// ---- 가상 결제 모드의 모의 응답 ----
+// 가상 결제창은 authKey에 카드 종류를 담아 보낸다(mock_auth_ok_… / mock_auth_fail_…).
+// fail 카드로 만든 빌링키는 결제 승인 때 잔액 부족으로 거절된다.
+const MOCK_PREFIX = { auth: "mock_auth_", billing: "mock_bk_" };
+
+function mockCall<T>(method: "POST" | "DELETE", path: string, body?: unknown): T {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (method === "POST" && path === "/v1/billing/authorizations/issue") {
+    const authKey = String(b.authKey ?? "");
+    if (!authKey.startsWith(MOCK_PREFIX.auth)) throw new TossError("INVALID_AUTH_KEY", "가상 결제창에서 받은 인증 키가 아닙니다.", 400);
+    const fail = authKey.startsWith(`${MOCK_PREFIX.auth}fail_`);
+    return {
+      billingKey: `${MOCK_PREFIX.billing}${fail ? "fail" : "ok"}_${crypto.randomUUID()}`,
+      customerKey: b.customerKey,
+      cardCompany: "가상카드",
+      cardNumber: fail ? "40000000****999*" : "43301234****123*",
+    } as T;
+  }
+  if (method === "POST" && path.startsWith("/v1/billing/")) {
+    const billingKey = decodeURIComponent(path.slice("/v1/billing/".length));
+    if (billingKey.startsWith(`${MOCK_PREFIX.billing}fail_`)) {
+      throw new TossError("REJECT_CARD_PAYMENT", "잔액이 부족합니다. (가상 결제 실패 카드)", 403);
+    }
+    // 같은 orderId는 같은 paymentKey를 돌려준다(토스 멱등키 동작과 같게).
+    return {
+      paymentKey: `mock_pay_${b.orderId}`,
+      orderId: b.orderId,
+      status: "DONE",
+      totalAmount: b.amount,
+      approvedAt: new Date().toISOString(),
+      receipt: null,
+    } as T;
+  }
+  if (method === "DELETE") return {} as T;
+  throw new TossError("NOT_FOUND", `가상 결제 모드에서 지원하지 않는 요청입니다: ${method} ${path}`, 404);
 }
 
 async function call<T>(
@@ -36,6 +82,7 @@ async function call<T>(
   body?: unknown,
   idempotencyKey?: string,
 ): Promise<T> {
+  if (isMockPayment()) return mockCall<T>(method, path, body);
   const headers: Record<string, string> = {
     Authorization: authHeader(),
     "Content-Type": "application/json",

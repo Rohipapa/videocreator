@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE, SITE_URL, SITE_VERIFICATION } from "@/lib/site";
-import { isTestMode } from "@/lib/toss";
+import { isMockPayment, isTestMode } from "@/lib/toss";
 import { logoutAction } from "./actions";
 import "./globals.css";
 
@@ -81,7 +81,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body>
         {isTestMode() && (
           <div className="test-banner" role="note">
-            테스트 환경입니다. 토스페이먼츠 테스트 키를 사용하므로 실제 결제가 발생하지 않습니다.
+            {isMockPayment()
+              ? "테스트 환경입니다. 가상 결제 모드라 카드 등록·결제가 모두 모의로 처리되고 실제 결제는 발생하지 않습니다."
+              : "테스트 환경입니다. 토스페이먼츠 테스트 키를 사용하므로 실제 결제가 발생하지 않습니다."}
           </div>
         )}
         <header className="site-header">

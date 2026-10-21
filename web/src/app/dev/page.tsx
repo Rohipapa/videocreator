@@ -21,7 +21,7 @@ async function DevPageContent({ searchParams }: PageProps<"/dev">) {
     <main className="narrow">
       <h1>테스트 도구</h1>
       <p className="muted">
-        한 달을 기다리지 않고 정기결제·해지 흐름을 확인하기 위한 도구입니다. 테스트 키(<code>test_sk_</code>)일 때만 동작합니다.
+        한 달을 기다리지 않고 정기결제·해지 흐름을 확인하기 위한 도구입니다. 테스트 키(<code>test_sk_</code>)나 가상 결제 모드(토스 키 없음)일 때만 동작합니다.
       </p>
       <Flash msg={msg} err={err} />
 
@@ -29,7 +29,7 @@ async function DevPageContent({ searchParams }: PageProps<"/dev">) {
         <h2>환경 상태</h2>
         <dl className="kv">
           <dt>시크릿 키</dt>
-          <dd>{process.env.TOSS_SECRET_KEY ? (testMode ? "테스트 키 설정됨" : "라이브 키 (테스트 도구 비활성)") : "미설정"}</dd>
+          <dd>{process.env.TOSS_SECRET_KEY ? (testMode ? "테스트 키 설정됨" : "라이브 키 (테스트 도구 비활성)") : "미설정 (가상 결제 모드)"}</dd>
           <dt>클라이언트 키</dt>
           <dd>{process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY ? "설정됨" : "미설정"}</dd>
           <dt>빌링키 암호화 키</dt>

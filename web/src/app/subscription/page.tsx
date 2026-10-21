@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { getCurrentSubscription, getPlan, listPayments, STATUS_LABEL } from "@/lib/billing";
 import { getBalance, getCurrentGrant, LEDGER_LABEL, listLedger } from "@/lib/credits";
 import { cancelAction, resumeAction } from "../actions";
+import { isMockPayment } from "@/lib/toss";
 import { BillingButton } from "../components/BillingButton";
 import { Flash } from "../components/Flash";
 import { date, dateTime, won } from "../components/format";
@@ -86,6 +87,7 @@ async function SubscriptionPageContent({ searchParams }: PageProps<"/subscriptio
 
             <div className="row">
               <BillingButton
+                mock={isMockPayment()}
                 customerKey={user.customer_key}
                 customerEmail={user.email}
                 label="결제 카드 변경"

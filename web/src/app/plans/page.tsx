@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getCurrentSubscription, getPlans } from "@/lib/billing";
 import { creditCost } from "@/lib/generation";
+import { isMockPayment } from "@/lib/toss";
 import { BillingButton } from "../components/BillingButton";
 import { won } from "../components/format";
 
@@ -58,6 +59,7 @@ async function PlansPageContent() {
               <p className="muted">{sub.plan_id === plan.id ? "현재 이용 중인 요금제" : "요금제 변경은 추후 지원 예정"}</p>
             ) : (
               <BillingButton
+                mock={isMockPayment()}
                 customerKey={user.customer_key}
                 customerEmail={user.email}
                 planId={plan.id}
