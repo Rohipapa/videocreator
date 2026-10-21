@@ -331,6 +331,36 @@ label {
   font-size: 0.92rem;
 }
 
+/* 라디오 선택지 묶음(가상 결제창의 카드 선택 등) */
+.choice-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px 16px;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.choice-group legend {
+  padding: 0 6px;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+label.choice {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+label.choice input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--magenta);
+}
+
 input,
 textarea,
 select {

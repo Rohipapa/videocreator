@@ -40,13 +40,13 @@ async function MockBillingPageContent({ searchParams }: PageProps<"/billing/mock
           <dd>{user.email}</dd>
         </dl>
 
-        <fieldset className="stack">
+        <fieldset className="choice-group">
           <legend>등록할 가상 카드</legend>
-          <label className="row">
+          <label className="choice">
             <input type="radio" name="authKey" value={`mock_auth_ok_${nonce}`} defaultChecked />
             정상 카드 (4330-12**-****-123*) — 결제가 승인됩니다
           </label>
-          <label className="row">
+          <label className="choice">
             <input type="radio" name="authKey" value={`mock_auth_fail_${nonce}`} />
             결제 실패 카드 (4000-00**-****-999*) — 잔액 부족으로 거절됩니다
           </label>
