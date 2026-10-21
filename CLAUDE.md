@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `PRD.md`: 제품 요구사항(v1.2). 구독 상태별 허용 기준, 크레딧 정책, 결제 흐름, Supabase 연동 범위(8.2~8.4, 7.7), 현재 구현 현황(17장)의 기준 문서입니다. 정책이나 구현 상태가 바뀌면 이 문서도 함께 고칩니다.
 - `web/`: Next.js 16(App Router, TypeScript) 앱. PRD의 MVP 중 **토스페이먼츠 자동결제(빌링) 구독**과 **크레딧 기반 생성 흐름**을 테스트 키로 검증하는 테스트 환경입니다.
+- `promo/`: Remotion으로 만드는 홍보영상(29초, 1080p). 영상 원본·변환본·글꼴·렌더링 결과는 커밋하지 않으며, 다시 만드는 방법과 영상 출처는 `promo/README.md`에 있습니다.
 - `.mcp.json`: 토스페이먼츠 연동 가이드 MCP(`@tosspayments/integration-guide-mcp`). 토스 API·SDK 사용법은 기억에 의존하지 말고 이 MCP로 확인합니다.
 - Supabase: 프로젝트 `videocreator`(ID `wucxicyzydzwqtvmuaza`, 서울 리전). Supabase MCP로 스키마 변경(`apply_migration`)과 문서 검색(`search_docs`)을 합니다. 적용한 마이그레이션은 같은 이름·버전으로 `supabase/migrations/`에도 SQL 파일로 남기고, 스키마를 바꾸면 `generate_typescript_types` 결과로 `web/src/lib/supabase/database.types.ts`를 갱신합니다. 같은 조직의 `moosin-shop` 프로젝트는 **다른 서비스**이므로 건드리지 않습니다.
 - 원격 저장소: https://github.com/Rohipapa/videocreator (공개 저장소, 브랜치 `main`)

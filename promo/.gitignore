@@ -1,0 +1,8 @@
+node_modules/
+out/
+# 내려받은 원본과 1080p 변환본(용량이 커서 커밋하지 않는다. README의 출처에서 다시 받는다)
+assets/src/
+assets/clips/
+build/
+# 글꼴은 npm install 때 pretendard 패키지에서 복사한다(postinstall)
+assets/fonts/
