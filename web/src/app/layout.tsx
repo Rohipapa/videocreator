@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/auth";
 import { SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE, SITE_URL, SITE_VERIFICATION } from "@/lib/site";
 import { isMockPayment, isTestMode } from "@/lib/toss";
-import { logoutAction } from "./actions";
 import "./globals.css";
 
 // 페이지별 canonical은 각 페이지에서 지정한다(레이아웃에 두면 모든 페이지가 첫 화면을 가리킨다).
@@ -47,20 +46,14 @@ async function UserNav() {
       <>
         <Link href="/login">로그인</Link>
         <Link href="/generate" className="nav-cta">
-          영상 만들기
+          무료로 시작
         </Link>
       </>
     );
   return (
     <>
       <Link href="/videos">내 영상</Link>
-      <Link href="/subscription">구독 관리</Link>
-      <Link href="/dev">테스트 도구</Link>
-      <form action={logoutAction}>
-        <button type="submit" className="link-button">
-          로그아웃
-        </button>
-      </form>
+      <Link href="/subscription">내 계정</Link>
       <Link href="/generate" className="nav-cta">
         영상 만들기
       </Link>

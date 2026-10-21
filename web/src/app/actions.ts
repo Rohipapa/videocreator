@@ -17,7 +17,7 @@ const LOGIN_EMAIL_COOKIE = "login_email";
 
 const safeNext = (v: FormDataEntryValue | null) => {
   const next = String(v ?? "");
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/subscription";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/generate";
 };
 
 const loginErr = (message: string): never => redirect("/login?err=" + encodeURIComponent(message));

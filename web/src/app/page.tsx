@@ -129,8 +129,8 @@ export default function Home() {
 
           <div className="hero-stats">
             <div>
-              <strong>3단계</strong>
-              <span>입력 → 생성 → 다운로드</span>
+              <strong>2편 무료</strong>
+              <span>가입하면 10초 영상</span>
             </div>
             <div>
               <strong>9,900원~</strong>
@@ -252,12 +252,12 @@ export default function Home() {
       {/* 마무리 CTA */}
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="cta-band">
-          <h2>첫 영상을 지금 만들어 보세요</h2>
-          <p>월 9,900원부터. 카드 등록 한 번이면 매달 크레딧이 자동으로 충전됩니다.</p>
+          <h2>첫 영상을 지금 무료로 만들어 보세요</h2>
+          <p>가입하면 10초 영상 2편을 카드 등록 없이 만들 수 있어요. 마음에 들면 월 9,900원부터 구독하세요.</p>
           <div className="row">
             <Link className="button large" href="/generate">
               <PlayMark />
-              영상 만들기
+              무료로 만들어 보기
             </Link>
             <Link className="button large secondary" href="/plans">
               요금제 보기

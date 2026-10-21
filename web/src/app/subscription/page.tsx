@@ -5,8 +5,9 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getCurrentSubscription, getPlan, listPayments, STATUS_LABEL } from "@/lib/billing";
 import { getBalance, getCurrentGrant, LEDGER_LABEL, listLedger } from "@/lib/credits";
-import { cancelAction, resumeAction } from "../actions";
-import { isMockPayment } from "@/lib/toss";
+import { cancelAction, logoutAction, resumeAction } from "../actions";
+import { creditCost } from "@/lib/generation";
+import { isMockPayment, isTestMode } from "@/lib/toss";
 import { BillingButton } from "../components/BillingButton";
 import { Flash } from "../components/Flash";
 import { date, dateTime, won } from "../components/format";
@@ -18,7 +19,7 @@ const PAYMENT_STATUS: Record<string, string> = {
   UNKNOWN: "결과 확인 중",
 };
 
-export const metadata: Metadata = { title: "구독 관리", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "내 계정", robots: { index: false, follow: false } };
 
 async function SubscriptionPageContent({ searchParams }: PageProps<"/subscription">) {
   const { msg, err } = await searchParams;
@@ -30,18 +31,63 @@ async function SubscriptionPageContent({ searchParams }: PageProps<"/subscriptio
   const granted = await getCurrentGrant(user.id);
   const payments = await listPayments(user.id);
   const ledger = await listLedger(user.id, 15);
+  // 구독한 적이 없으면 가입 체험 크레딧을 쓰는 중이다.
+  const trial = !sub;
+
+  const credits = (
+    <section className="card">
+      <h2>{trial ? "무료 체험 크레딧" : "이번 주기 크레딧"}</h2>
+      <p className="big-number">
+        {balance.toLocaleString("ko-KR")}
+        <span className="muted"> / {granted.toLocaleString("ko-KR")}</span>
+      </p>
+      <meter min={0} max={Math.max(granted, 1)} value={balance} aria-label="남은 크레딧" />
+      <p className="muted small">
+        사용 {Math.max(granted - balance, 0).toLocaleString("ko-KR")} · 잔여 {balance.toLocaleString("ko-KR")} · 지급{" "}
+        {granted.toLocaleString("ko-KR")}
+      </p>
+      <h3>최근 크레딧 내역</h3>
+      <table>
+        <tbody>
+          {ledger.map((l, i) => (
+            <tr key={i}>
+              <td className="nowrap">{dateTime(l.created_at)}</td>
+              <td className="nowrap">{LEDGER_LABEL[l.type]}</td>
+              <td className="num">{l.amount > 0 ? `+${l.amount}` : l.amount}</td>
+              <td className="muted">{l.reason}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
 
   return (
     <main>
-      <h1>구독 관리</h1>
+      <h1>내 계정</h1>
       <Flash msg={msg} err={err} />
 
       {!sub || !live ? (
-        <div className="card">
-          <p>{sub ? `이전 구독이 ${STATUS_LABEL[sub.status]} 상태입니다.` : "이용 중인 구독이 없습니다."}</p>
-          <Link className="button" href="/plans">
-            요금제 선택하기
-          </Link>
+        <div className="grid">
+          <section className="card">
+            <h2>구독</h2>
+            <p>
+              {sub
+                ? `이전 구독이 ${STATUS_LABEL[sub.status]} 상태입니다.`
+                : `무료 체험 중이에요. 남은 크레딧으로 10초 영상 ${Math.floor(balance / creditCost(10))}편을 더 만들 수 있어요.`}
+            </p>
+            <div className="row">
+              {trial && balance >= creditCost(5) && (
+                <Link className="button secondary" href="/generate">
+                  영상 만들기
+                </Link>
+              )}
+              <Link className="button" href="/plans">
+                요금제 선택하기
+              </Link>
+            </div>
+          </section>
+          {trial && credits}
         </div>
       ) : (
         <div className="grid">
@@ -110,31 +156,7 @@ async function SubscriptionPageContent({ searchParams }: PageProps<"/subscriptio
             </p>
           </section>
 
-          <section className="card">
-            <h2>이번 주기 크레딧</h2>
-            <p className="big-number">
-              {balance.toLocaleString("ko-KR")}
-              <span className="muted"> / {granted.toLocaleString("ko-KR")}</span>
-            </p>
-            <meter min={0} max={Math.max(granted, 1)} value={balance} aria-label="남은 크레딧" />
-            <p className="muted small">
-              사용 {Math.max(granted - balance, 0).toLocaleString("ko-KR")} · 잔여 {balance.toLocaleString("ko-KR")} · 지급{" "}
-              {granted.toLocaleString("ko-KR")}
-            </p>
-            <h3>최근 크레딧 내역</h3>
-            <table>
-              <tbody>
-                {ledger.map((l, i) => (
-                  <tr key={i}>
-                    <td className="nowrap">{dateTime(l.created_at)}</td>
-                    <td className="nowrap">{LEDGER_LABEL[l.type]}</td>
-                    <td className="num">{l.amount > 0 ? `+${l.amount}` : l.amount}</td>
-                    <td className="muted">{l.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+          {credits}
         </div>
       )}
 
@@ -177,6 +199,22 @@ async function SubscriptionPageContent({ searchParams }: PageProps<"/subscriptio
             </tbody>
           </table>
         )}
+      </section>
+      <section className="card">
+        <h2>계정</h2>
+        <p className="muted">{user.email}</p>
+        <div className="row">
+          <form action={logoutAction}>
+            <button type="submit" className="button secondary">
+              로그아웃
+            </button>
+          </form>
+          {isTestMode() && (
+            <Link className="button secondary" href="/dev">
+              테스트 도구
+            </Link>
+          )}
+        </div>
       </section>
     </main>
   );

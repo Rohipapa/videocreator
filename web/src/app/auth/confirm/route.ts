@@ -7,8 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 // - 기본 템플릿이면 Supabase 검증 후 ?code= 로 돌아오므로 세션으로 교환한다(같은 브라우저에서 열어야 함).
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
-  const next = url.searchParams.get("next") ?? "/subscription";
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/subscription";
+  const next = url.searchParams.get("next") ?? "/generate";
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/generate";
   const to = (path: string) => NextResponse.redirect(new URL(path, request.url));
 
   const supabase = await createSupabaseServerClient();

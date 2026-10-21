@@ -4,14 +4,14 @@ import { Loading } from "../components/Loading";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getCurrentSubscription, getPlans } from "@/lib/billing";
-import { creditCost } from "@/lib/generation";
+import { creditCost, TRIAL_CREDITS } from "@/lib/generation";
 import { isMockPayment } from "@/lib/toss";
 import { BillingButton } from "../components/BillingButton";
 import { won } from "../components/format";
 
 export const metadata: Metadata = {
   title: "요금제",
-  description: "AI 비디오 스튜디오 요금제: 베이직 월 9,900원(300 크레딧, 최대 5초), 프로 월 29,900원(1,200 크레딧, 최대 10초). 카드 자동결제, 언제든 해지.",
+  description: "AI 비디오 스튜디오 요금제: 베이직 월 9,900원(10초 영상 20편), 프로 월 29,900원(10초 영상 65편). 가입하면 10초 영상 2편 무료, 카드 자동결제, 언제든 해지.",
   alternates: { canonical: "/plans" },
   openGraph: { url: "/plans" },
 };
@@ -32,6 +32,17 @@ async function PlansPageContent() {
           매월 같은 날 등록한 카드로 자동 결제되고, 결제할 때마다 크레딧이 새로 지급됩니다. 미사용 크레딧은 다음 달로 이월되지 않습니다.
         </p>
       </div>
+      {!subscribed && (
+        <div className="trial-note row between">
+          <span>
+            <strong>먼저 무료로 써 보세요.</strong> 가입하면 10초 영상 {TRIAL_CREDITS / creditCost(10)}편을 프로 요금제와 같은 조건으로 만들 수
+            있어요. 카드 등록은 필요 없어요.
+          </span>
+          <Link className="button" href="/generate">
+            무료로 만들어 보기
+          </Link>
+        </div>
+      )}
       <div className="grid">
         {plans.map((plan) => (
           <div
@@ -46,10 +57,9 @@ async function PlansPageContent() {
             </p>
             <ul>
               <li>월 {plan.monthly_credits.toLocaleString("ko-KR")} 크레딧</li>
-              <li>최대 {plan.max_duration}초 영상</li>
-              <li>
-                5초 영상 기준 약 {Math.floor(plan.monthly_credits / creditCost(5))}편
-              </li>
+              <li>10초 영상 {Math.floor(plan.monthly_credits / creditCost(10))}편</li>
+              <li>최대 {plan.max_duration}초 · 화면 비율 3종</li>
+              <li>편당 약 {won(Math.round(plan.price / Math.floor(plan.monthly_credits / creditCost(10))))}</li>
             </ul>
             {!user ? (
               <Link className="button" href="/login?next=/plans">

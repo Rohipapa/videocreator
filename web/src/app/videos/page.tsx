@@ -3,11 +3,10 @@ import { Suspense } from "react";
 import { Loading } from "../components/Loading";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { advanceMockJobs, JOB_STATUS_LABEL, listJobs } from "@/lib/generation";
+import { advanceMockJobs, JOB_STATUS_LABEL, listJobs, mockResultVideo } from "@/lib/generation";
 import { AutoRefresh } from "../components/AutoRefresh";
 import { Flash } from "../components/Flash";
 import { dateTime } from "../components/format";
-import { Scene, sceneFor } from "../components/Scene";
 
 export const metadata: Metadata = { title: "내 영상", robots: { index: false, follow: false } };
 
@@ -49,10 +48,8 @@ async function VideosPageContent({ searchParams }: PageProps<"/videos">) {
               <div className={`preview ratio-${job.aspect_ratio.replace(":", "x")} ${job.status}`}>
                 {job.status === "completed" ? (
                   <>
-                    <Scene name={sceneFor(job.id)} />
-                    <span className="play" aria-label="모의 결과 영상">
-                      ▶
-                    </span>
+                    <video src={`${mockResultVideo(job)}#t=0.1`} controls muted loop playsInline preload="metadata" />
+                    <span className="sample-chip">예시용 스톡 영상</span>
                   </>
                 ) : job.status === "failed" ? (
                   <span>생성 실패</span>
@@ -68,8 +65,8 @@ async function VideosPageContent({ searchParams }: PageProps<"/videos">) {
               {job.failure_reason && <p className="field-error">{job.failure_reason} — 크레딧이 복구되었습니다.</p>}
               <p className="muted small">요청: {dateTime(job.created_at)}</p>
               {job.status === "completed" && (
-                <button className="button secondary" disabled title="실제 AI 제공자 연동 후 제공">
-                  다운로드 (실제 연동 후 제공)
+                <button className="button secondary" disabled title="샘플 사이트에서는 다운로드를 제공하지 않습니다">
+                  다운로드 (실제 서비스에서 제공)
                 </button>
               )}
             </article>

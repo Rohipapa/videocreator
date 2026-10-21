@@ -54,7 +54,8 @@ npx tsc --noEmit     # 타입 검사만
   - `runBillingScheduler`: 기간이 끝난 `cancel_at_period_end`를 `canceled`로 정리하고, `next_billing_at`이 지난 구독을 결제합니다.
   - `canGenerate(status)`: PRD 4.3의 상태별 생성 허용 기준(`active`, `cancel_at_period_end`만 허용).
 - `credits.ts`: 잔액을 저장하지 않는 **원장(ledger)** 방식. 잔액 = `credit_ledger.amount` 합계. 유형은 `grant`(+), `reserve`(−), `release`(+), `consume`(0, 확정 기록), `expire`(−), `adjust`. 새 결제 회차에는 미사용분을 만료시키고 새로 지급합니다(이월 없음). 진행 중 작업의 예약분은 이미 잔액에서 빠져 있으므로 만료 계산에서 다시 빼지 않습니다(작업이 실패하면 `release`로 복구).
-- `generation.ts`: 모의 AI 제공자. 생성 요청 시 서버에서 구독 상태·요금제 최대 길이·잔액을 검증하고, 폼의 `idempotencyKey`로 중복 생성을 막으며 크레딧을 예약합니다. 진행은 `advanceMockJobs()`가 **페이지 조회 시점**에 경과 시간으로 상태를 갱신합니다(대기 2초 → 생성 8초). 프롬프트에 `[실패]`가 있으면 실패하고 크레딧을 복구합니다. 실제 제공자 연동 시 이 모듈만 교체합니다.
+- `generation.ts`: 모의 AI 제공자. 생성 요청 시 서버에서 `getGenerationAccess()`(구독 상태 또는 체험 여부·최대 길이)와 잔액을 검증하고, 폼의 `idempotencyKey`로 중복 생성을 막으며 크레딧을 예약합니다. 진행은 `advanceMockJobs()`가 **페이지 조회 시점**에 경과 시간으로 상태를 갱신합니다(대기 2초 → 생성 8초). 프롬프트에 `[실패]`가 있으면 실패하고 크레딧을 복구합니다. 완료된 작업은 `mockResultVideo()`가 프롬프트 낱말로 `public/videos`의 스톡 영상을 골라 보여 줍니다(화면에 "예시용 스톡 영상" 표시). 실제 제공자 연동 시 이 모듈만 교체합니다.
+  - 무료 체험: 가입 트리거 `handle_new_user`가 40 크레딧(`TRIAL_CREDITS`와 같은 값)을 지급합니다. 구독 이력이 없는 사용자만 체험으로 생성할 수 있고, 최대 길이는 요금제 중 가장 긴 값(프로 조건)입니다. 구독 이력이 있으면 PRD 4.3 기준을 그대로 따릅니다.
 
 ### 라우트 (`web/src/app/`)
 
@@ -70,7 +71,7 @@ npx tsc --noEmit     # 타입 검사만
 - `globals.css` 하나에 디자인 토큰(다크 캔버스 + 빨강·보라·파랑 그라디언트 `--grad`)과 모든 스타일이 있습니다. 다크 테마 단일 구성입니다.
 - `components/HeroDemo.tsx`: 프롬프트 타이핑 → 생성(블러가 걷힘) → 재생을 반복하는 데모. `components/AutoVideo.tsx`는 화면에 보일 때만 재생하고 `prefers-reduced-motion`이면 재생하지 않습니다.
 - `web/public/videos/`의 예시 영상은 AI 결과물이 아닌 무료 스톡 영상(Mixkit Free License, Pixabay Content License)이므로 화면에 "AI 생성"이라고 표기하지 않습니다. 출처 목록은 `web/README.md`의 "영상 출처"에 있고, 영상을 추가·교체하면 그 표도 갱신합니다.
-- `components/Scene.tsx`: CSS로 그린 장면. 지금은 내 영상 라이브러리의 모의 결과 미리보기에만 씁니다.
+- 메뉴: 로그인 전 요금제·로그인·무료로 시작, 로그인 후 요금제·내 영상·내 계정·영상 만들기. 로그아웃과 테스트 도구(테스트 키일 때만)는 `/subscription`(내 계정) 화면에 있습니다.
 
 ## Supabase 전환 (진행 중)
 
@@ -100,7 +101,7 @@ npx tsc --noEmit     # 타입 검사만
 
 ## 검색 노출 (SEO·AEO·GEO)
 
-- 사이트 정보(주소, 제목·설명, 요금 요약, FAQ, 검색 콘솔 확인 토큰)는 `web/src/lib/site.ts` 한곳에서 관리합니다. `PLAN_SUMMARY`는 DB `plans` 시드와 같은 값이어야 하므로 요금을 바꾸면 둘 다 고칩니다. FAQ 문구는 첫 화면 "자주 묻는 질문", FAQPage JSON-LD, `/llms.txt`에 함께 쓰이므로 실제 정책과 어긋나지 않게 씁니다.
+- 사이트 정보(주소, 제목·설명, 요금 요약, FAQ, 검색 콘솔 확인 토큰)는 `web/src/lib/site.ts` 한곳에서 관리합니다. `PLAN_SUMMARY`는 DB `plans` 값과 같아야 하므로 요금을 바꾸면 마이그레이션과 함께 고칩니다. 체험 크레딧은 `generation.ts`의 `TRIAL_CREDITS`와 DB `handle_new_user`를 함께 고칩니다. FAQ 문구는 첫 화면 "자주 묻는 질문", FAQPage JSON-LD, `/llms.txt`에 함께 쓰이므로 실제 정책과 어긋나지 않게 씁니다.
 - `SITE_URL`은 `NEXT_PUBLIC_SITE_URL` → Vercel의 `VERCEL_PROJECT_PRODUCTION_URL` → localhost 순서로 정합니다.
 - 공개 페이지는 `/`, `/plans`뿐입니다. 새 공개 페이지를 만들면 `app/sitemap.ts`에 넣고 페이지 `metadata`에 `alternates.canonical`을 지정합니다. 로그인 뒤 화면은 `robots: { index: false }`를 두고 `app/robots.ts`의 `PRIVATE`에 넣습니다.
 - `app/opengraph-image.tsx`는 빌드 때 Google Fonts에서 필요한 글자만 담은 Noto Sans KR을 받아 그립니다(`"use cache"`는 글꼴 로더에만 둡니다. 함수 전체에 두면 `Response`를 직렬화하지 못해 빌드가 실패합니다).

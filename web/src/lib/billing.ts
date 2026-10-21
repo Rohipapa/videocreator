@@ -181,7 +181,7 @@ export async function handleBillingAuthSuccess(
   const result = await chargeSubscription(created.id);
   if (!result.ok && result.unknown) {
     // 결제 결과를 알 수 없음: 빌링키를 유지하고 pending으로 둔다. 스케줄러가 같은 orderId로 재확인한다.
-    return { ok: false, code: result.code, message: "결제 결과를 확인하는 중입니다. 잠시 후 구독 관리에서 상태를 확인해 주세요." };
+    return { ok: false, code: result.code, message: "결제 결과를 확인하는 중입니다. 잠시 후 내 계정에서 상태를 확인해 주세요." };
   }
   if (!result.ok) return result;
   return { ok: true, message: `${plan.name} 구독이 시작되었습니다.` };

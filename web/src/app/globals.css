@@ -1326,24 +1326,40 @@ td {
   animation: shimmer 1.6s linear infinite;
 }
 
-.video .preview .scene {
+.video .preview video {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
 }
 
-.video .preview .play {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+/* 샘플 결과가 AI 생성물이 아니라는 표시 */
+.video .preview .sample-chip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
   color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.trial-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--grad-soft);
+  font-size: 0.92rem;
+}
+
+.trial-note strong {
+  color: var(--text);
 }
 
 .video .prompt {
@@ -1374,255 +1390,8 @@ td {
 }
 
 /* ============================================================
-   CSS 영상 장면
-   ============================================================ */
-.scene {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  isolation: isolate;
-  animation: sceneIn 0.8s ease-out;
-}
-
-.scene span {
-  position: absolute;
-  display: block;
-}
-
-/* 해변 노을 */
-.scene-beach {
-  background: linear-gradient(180deg, #1d0b3f 0%, #6b1d6e 28%, #e2456b 48%, #ff9a5a 61%, #1c3f6b 62%, #0a1e3a 100%);
-}
-.scene-beach .l1 {
-  width: 20%;
-  aspect-ratio: 1;
-  left: 40%;
-  top: 41%;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff6d5 0%, #ffc56b 55%, #ff8a4c 70%);
-  box-shadow: 0 0 80px 30px rgba(255, 150, 80, 0.55);
-  animation: sunset 9s ease-in-out infinite alternate;
-}
-.scene-beach .l2 {
-  /* 불투명한 바다가 해의 아랫부분을 가려 수평선 너머로 지는 것처럼 보이게 한다 */
-  inset: 62% 0 0 0;
-  background:
-    linear-gradient(90deg, transparent 38%, rgba(255, 190, 120, 0.45) 50%, transparent 62%),
-    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0 2px, transparent 2px 13px),
-    linear-gradient(180deg, #24467a, #0a1e3a);
-  background-size:
-    100% 100%,
-    100% 26px,
-    100% 100%;
-  animation: waves 2.6s linear infinite;
-  z-index: 1;
-}
-.scene-beach .l3 {
-  bottom: 22%;
-  width: 9%;
-  height: 7%;
-  border-radius: 45% 55% 30% 35%;
-  background: #12071c;
-  animation: run 7s linear infinite;
-  z-index: 2;
-}
-.scene-beach .l4 {
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 60%, transparent 40%, rgba(0, 0, 0, 0.45));
-  z-index: 3;
-}
-
-/* 비 오는 네온 도시 */
-.scene-city {
-  background:
-    radial-gradient(ellipse at 50% 100%, rgba(255, 46, 136, 0.35), transparent 60%),
-    linear-gradient(180deg, #020108 0%, #0b0620 50%, #24104a 100%);
-}
-.scene-city .l1 {
-  inset: 22% 0 0 0;
-  background:
-    radial-gradient(circle, rgba(255, 214, 140, 0.55) 1px, transparent 1.5px) 3px 6px / 18px 22px,
-    linear-gradient(180deg, #2a1d5c 0%, #1a1240 40%, #0c0820 100%);
-  clip-path: polygon(0 40%, 8% 40%, 8% 10%, 18% 10%, 18% 35%, 26% 35%, 26% 0, 38% 0, 38% 28%, 47% 28%, 47% 15%, 58% 15%, 58% 38%, 66% 38%, 66% 5%, 78% 5%, 78% 30%, 88% 30%, 88% 18%, 100% 18%, 100% 100%, 0 100%);
-}
-.scene-city .l2 {
-  inset: 0;
-  background:
-    linear-gradient(#ff2e88, #ff2e88) 14% 48% / 22% 4% no-repeat,
-    linear-gradient(#22d3ee, #22d3ee) 74% 58% / 16% 4% no-repeat,
-    linear-gradient(#ffd166, #ffd166) 52% 40% / 3% 14% no-repeat;
-  filter: drop-shadow(0 0 6px rgba(255, 120, 220, 0.95)) drop-shadow(0 0 16px rgba(120, 200, 255, 0.6));
-  animation: flicker 3.2s steps(1) infinite;
-  z-index: 1;
-}
-.scene-city .l3 {
-  inset: -20%;
-  background: repeating-linear-gradient(105deg, rgba(180, 200, 255, 0.22) 0 1px, transparent 1px 10px);
-  animation: rain 0.5s linear infinite;
-  z-index: 2;
-}
-.scene-city .l4 {
-  inset: 82% 0 0 0;
-  background: linear-gradient(180deg, rgba(255, 46, 136, 0.35), rgba(34, 211, 238, 0.25) 60%, transparent);
-  filter: blur(6px);
-  animation: shimmerX 3s ease-in-out infinite alternate;
-}
-
-/* 안개 숲 */
-.scene-forest {
-  background: linear-gradient(180deg, #f3e7c4 0%, #a9c98f 30%, #3f7350 62%, #12301e 100%);
-}
-.scene-forest .l1 {
-  inset: -40% -20% 0 -20%;
-  background: repeating-conic-gradient(from 195deg at 72% 0%, rgba(255, 248, 210, 0.38) 0deg 3deg, transparent 3deg 11deg);
-  mix-blend-mode: screen;
-  transform-origin: 72% 0;
-  animation: rays 10s ease-in-out infinite alternate;
-}
-.scene-forest .l2 {
-  inset: 30% 0 0 0;
-  background: linear-gradient(180deg, #24513a, #0c2316);
-  clip-path: polygon(0 45%, 5% 20%, 10% 45%, 14% 10%, 20% 42%, 26% 0, 32% 40%, 37% 18%, 43% 46%, 50% 8%, 57% 44%, 62% 22%, 68% 48%, 74% 4%, 80% 40%, 86% 16%, 92% 44%, 96% 26%, 100% 40%, 100% 100%, 0 100%);
-}
-.scene-forest .l3 {
-  inset: 55% -30% 0 -30%;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.55), transparent 62%);
-  animation: fog 9s ease-in-out infinite alternate;
-  z-index: 2;
-}
-.scene-forest .l4 {
-  inset: 0;
-  background: radial-gradient(1.5px 1.5px at 30% 40%, #fff8d0, transparent), radial-gradient(1.5px 1.5px at 60% 30%, #fff8d0, transparent),
-    radial-gradient(1.5px 1.5px at 75% 55%, #fff8d0, transparent), radial-gradient(1.5px 1.5px at 45% 60%, #fff8d0, transparent);
-  animation: float 6s ease-in-out infinite;
-  z-index: 3;
-}
-
-/* 제품 광고 컷 */
-.scene-product {
-  background: radial-gradient(circle at 50% 38%, #4a2b74 0%, #1a0f30 55%, #09060f 100%);
-}
-.scene-product .l1 {
-  left: 25%;
-  bottom: 9%;
-  width: 50%;
-  height: 14%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(255, 70, 140, 0.55), transparent 70%);
-  filter: blur(4px);
-}
-.scene-product .l2 {
-  left: 43%;
-  bottom: 18%;
-  width: 14%;
-  height: 48%;
-  border-radius: 14px 14px 10px 10px;
-  background: linear-gradient(90deg, #b3154f 0%, #ff5c8a 35%, #ffd1df 48%, #ff5c8a 62%, #8a0f43 100%);
-  box-shadow: 0 20px 40px -10px rgba(255, 46, 99, 0.6);
-  animation: bottle 5s ease-in-out infinite;
-}
-.scene-product .l3 {
-  left: 46%;
-  bottom: 64%;
-  width: 8%;
-  height: 8%;
-  border-radius: 4px 4px 2px 2px;
-  background: linear-gradient(90deg, #8f8f9a, #f2f2f5 45%, #6b6b75);
-  animation: bottle 5s ease-in-out infinite;
-}
-.scene-product .l4 {
-  inset: 0;
-  background: radial-gradient(2px 2px at 30% 30%, #fff, transparent), radial-gradient(2px 2px at 68% 24%, #fff, transparent),
-    radial-gradient(2px 2px at 74% 60%, #fff, transparent), radial-gradient(2px 2px at 22% 62%, #fff, transparent);
-  animation: twinkle 2.4s ease-in-out infinite;
-}
-
-/* 우주 */
-.scene-space {
-  background: radial-gradient(circle at 72% 30%, #3f1d78 0%, #120a2b 45%, #04030a 100%);
-}
-.scene-space .l1 {
-  inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 10% 20%, #fff, transparent), radial-gradient(1px 1px at 25% 70%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 40% 35%, #fff, transparent), radial-gradient(1px 1px at 55% 85%, #fff, transparent),
-    radial-gradient(1px 1px at 70% 15%, #fff, transparent), radial-gradient(1.5px 1.5px at 85% 60%, #fff, transparent),
-    radial-gradient(1px 1px at 92% 30%, #fff, transparent), radial-gradient(1px 1px at 15% 50%, #fff, transparent);
-  animation: twinkle 3s ease-in-out infinite;
-}
-.scene-space .l2 {
-  width: 30%;
-  aspect-ratio: 1;
-  left: 50%;
-  top: 30%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 30%, #ffc3a8, #ff2e63 45%, #5c0d4a 80%);
-  box-shadow: 0 0 60px rgba(255, 46, 99, 0.45);
-  animation: drift 12s ease-in-out infinite alternate;
-}
-.scene-space .l3 {
-  width: 48%;
-  height: 12%;
-  left: 41%;
-  top: 49%;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 210, 240, 0.6);
-  transform: rotate(-14deg);
-  animation: drift 12s ease-in-out infinite alternate;
-}
-.scene-space .l4 {
-  width: 18%;
-  height: 2px;
-  left: -20%;
-  top: 22%;
-  background: linear-gradient(90deg, transparent, #fff);
-  transform: rotate(18deg);
-  animation: shooting 5s ease-in infinite;
-}
-
-/* 바닷속 */
-.scene-ocean {
-  background: linear-gradient(180deg, #19c2e0 0%, #0a64a8 45%, #052150 100%);
-}
-.scene-ocean .l1 {
-  inset: -30%;
-  background: repeating-radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.14) 0 3px, transparent 3px 26px);
-  animation: caustics 8s ease-in-out infinite alternate;
-  mix-blend-mode: screen;
-}
-.scene-ocean .l2 {
-  inset: 0;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.6) 1.5px, transparent 2.5px);
-  background-size: 40px 60px;
-  animation: bubbles 4s linear infinite;
-  opacity: 0.7;
-}
-.scene-ocean .l3 {
-  left: -30%;
-  top: 48%;
-  width: 34%;
-  height: 12%;
-  border-radius: 60% 40% 40% 60% / 60% 50% 50% 40%;
-  background: #031634;
-  opacity: 0.85;
-  animation: swim 11s linear infinite;
-}
-.scene-ocean .l4 {
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 25%);
-}
-
-/* ============================================================
    애니메이션
    ============================================================ */
-@keyframes sceneIn {
-  from {
-    opacity: 0;
-    transform: scale(1.06);
-    filter: blur(8px);
-  }
-}
 @keyframes glow {
   to {
     opacity: 0.5;
@@ -1659,19 +1428,6 @@ td {
     transform: translateX(-50%);
   }
 }
-@keyframes sunset {
-  to {
-    transform: translateY(12%);
-  }
-}
-@keyframes waves {
-  to {
-    background-position:
-      0 0,
-      0 26px,
-      0 0;
-  }
-}
 @keyframes run {
   from {
     left: -12%;
@@ -1680,103 +1436,6 @@ td {
     left: 110%;
   }
 }
-@keyframes flicker {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  42% {
-    opacity: 0.55;
-  }
-  44% {
-    opacity: 1;
-  }
-  80% {
-    opacity: 0.8;
-  }
-}
-@keyframes rain {
-  to {
-    transform: translate(-10px, 40px);
-  }
-}
-@keyframes shimmerX {
-  to {
-    transform: translateX(6%);
-  }
-}
-@keyframes rays {
-  from {
-    transform: rotate(-4deg);
-  }
-  to {
-    transform: rotate(5deg);
-  }
-}
-@keyframes fog {
-  to {
-    transform: translateX(14%);
-  }
-}
-@keyframes float {
-  50% {
-    transform: translateY(-6%);
-  }
-}
-@keyframes bottle {
-  0%,
-  100% {
-    transform: translateY(0) rotateY(0);
-  }
-  50% {
-    transform: translateY(-5%);
-  }
-}
-@keyframes twinkle {
-  50% {
-    opacity: 0.35;
-  }
-}
-@keyframes drift {
-  to {
-    transform: translate(-6%, 4%) rotate(-14deg);
-  }
-}
-@keyframes shooting {
-  0%,
-  60% {
-    left: -20%;
-    top: 12%;
-    opacity: 0;
-  }
-  65% {
-    opacity: 1;
-  }
-  100% {
-    left: 110%;
-    top: 46%;
-    opacity: 0;
-  }
-}
-@keyframes caustics {
-  to {
-    transform: translate(6%, 4%) scale(1.08);
-  }
-}
-@keyframes bubbles {
-  to {
-    background-position: 0 -60px;
-  }
-}
-@keyframes swim {
-  from {
-    left: -35%;
-  }
-  to {
-    left: 110%;
-  }
-}
-
 /* ============================================================
    반응형·접근성
    ============================================================ */

@@ -1,7 +1,8 @@
 import "server-only";
 import { nowIso, type Job, type User } from "./db";
 import { admin, unwrap } from "./supabase/admin";
-import { canGenerate, getCurrentSubscription, getPlan } from "./billing";
+import { canGenerate, getCurrentSubscription, getPlan, getPlans } from "./billing";
+import { getBalance } from "./credits";
 
 // 테스트 환경용 모의(mock) AI 제공자. 실제 제공자 연동 시 이 모듈의 처리 부분만 교체한다(PRD 10.3).
 export const ASPECT_RATIOS = ["16:9", "9:16", "1:1"] as const;
@@ -11,6 +12,29 @@ const PROCESS_MS = 8_000;
 export const FAIL_TRIGGER = "[실패]"; // 프롬프트에 포함하면 실패를 시뮬레이션한다.
 
 export const creditCost = (duration: number) => duration * 2;
+
+/** 가입 체험 크레딧(10초 영상 2편). DB 함수 handle_new_user가 지급하는 양과 같아야 한다. */
+export const TRIAL_CREDITS = 40;
+
+export type GenerationAccess =
+  | { mode: "subscription"; planName: string; maxDuration: number }
+  | { mode: "trial"; maxDuration: number }
+  | { mode: "none"; message: string };
+
+/**
+ * 생성 가능 여부와 최대 길이. 구독한 적이 없는 사용자는 가입 체험 크레딧으로 프로와 같은 조건(가장 긴 길이)까지 만들 수 있다.
+ * 구독 이력이 있으면 PRD 4.3의 상태별 기준을 따른다(만료·결제 실패 상태에서는 남은 크레딧이 있어도 생성 불가).
+ */
+export async function getGenerationAccess(userId: string): Promise<GenerationAccess> {
+  const sub = await getCurrentSubscription(userId);
+  if (!sub) {
+    const maxDuration = Math.max(...(await getPlans()).map((p) => p.max_duration));
+    return { mode: "trial", maxDuration };
+  }
+  if (!canGenerate(sub.status)) return { mode: "none", message: "이용 중인 구독이 없습니다. 요금제를 먼저 선택해 주세요." };
+  const plan = (await getPlan(sub.plan_id))!;
+  return { mode: "subscription", planName: plan.name, maxDuration: plan.max_duration };
+}
 
 export type CreateJobResult = { ok: true; jobId: string } | { ok: false; message: string };
 
@@ -29,12 +53,15 @@ export async function createJob(
   }
   if (!input.idempotencyKey) return { ok: false, message: "잘못된 요청입니다." };
 
-  // 구독 상태와 잔여 크레딧은 서버에서 검증한다(PRD 3.3).
-  const sub = await getCurrentSubscription(user.id);
-  if (!sub || !canGenerate(sub.status)) return { ok: false, message: "이용 중인 구독이 없습니다. 요금제를 먼저 선택해 주세요." };
-  const plan = (await getPlan(sub.plan_id))!;
-  if (input.duration > plan.max_duration) {
-    return { ok: false, message: `${plan.name} 요금제는 최대 ${plan.max_duration}초까지 생성할 수 있습니다.` };
+  // 구독 상태(또는 체험 여부)와 잔여 크레딧은 서버에서 검증한다(PRD 3.3).
+  const access = await getGenerationAccess(user.id);
+  if (access.mode === "none") return { ok: false, message: access.message };
+  if (input.duration > access.maxDuration) {
+    const who = access.mode === "trial" ? "체험" : `${access.planName} 요금제`;
+    return { ok: false, message: `${who}는 최대 ${access.maxDuration}초까지 생성할 수 있습니다.` };
+  }
+  if (access.mode === "trial" && (await getBalance(user.id)) < creditCost(input.duration)) {
+    return { ok: false, message: "체험 크레딧을 모두 사용했습니다. 요금제를 선택하면 계속 만들 수 있어요." };
   }
 
   // 중복 요청 키 확인 → 잔액 확인 → 작업 생성 → 크레딧 예약을 DB 함수 하나에서 원자적으로 처리한다.
@@ -87,6 +114,27 @@ export async function advanceMockJobs(userId: string) {
       );
     }
   }
+}
+
+// 샘플 사이트용 모의 결과: 프롬프트의 낱말로 public/videos의 스톡 영상(AI 결과물 아님)을 고른다.
+// 앞에 있는 주제가 먼저 맞는다. 영상 출처는 web/README.md의 "영상 출처".
+const MOCK_VIDEOS: { words: string[]; srcs: string[] }[] = [
+  { words: ["강아지", "댕댕", "반려견", "멍멍", "콜리", "리트리버", "푸들", "dog", "puppy"], srcs: ["hero-dog", "gallery-collies"] },
+  { words: ["전투기", "비행기", "제트기", "에어쇼", "편대", "jet", "plane"], srcs: ["hero-jet", "gallery-jet"] },
+  { words: ["자동차", "스포츠카", "레이싱", "드라이브", "차량", "car"], srcs: ["hero-car", "gallery-redcar"] },
+  { words: ["바다", "파도", "해변", "해안", "절벽", "ocean", "sea"], srcs: ["gallery-cliff"] },
+  { words: ["협곡", "숲", "계곡", "정글", "forest"], srcs: ["gallery-canyon"] },
+  { words: ["설산", "알프스", "눈 덮인", "바위산", "산맥", "mountain"], srcs: ["hero-landscape", "gallery-alps"] },
+];
+const FALLBACK_VIDEOS = ["hero-landscape", "gallery-alps", "gallery-canyon", "gallery-cliff"];
+
+/** 같은 작업에는 항상 같은 영상을 보여 준다. */
+export function mockResultVideo(job: Pick<Job, "id" | "prompt">): string {
+  const text = job.prompt.toLowerCase();
+  const srcs = MOCK_VIDEOS.find((v) => v.words.some((w) => text.includes(w)))?.srcs ?? FALLBACK_VIDEOS;
+  let h = 0;
+  for (const c of job.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `/videos/${srcs[h % srcs.length]}.mp4`;
 }
 
 export async function listJobs(userId: string): Promise<Job[]> {
