@@ -24,6 +24,9 @@ npx tsc --noEmit     # 타입 검사만
 
 - 환경변수는 `web/.env.local`(커밋 금지, `.env.example` 참고): `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `BILLING_KEY_SECRET`(base64 32바이트), `CRON_SECRET`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`(서버 전용, 사용자가 대시보드에서 복사), 선택 `TOSS_API_BASE`.
 - 이 PC(Windows)는 Node.js·Git을 winget으로 설치했습니다. 셸에서 `node`/`git`을 못 찾으면 PATH를 다시 읽습니다: `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`
+- PowerShell에서는 실행 정책 때문에 `npx`가 막히므로 `npx.cmd`를 쓰거나 Bash 도구에서 실행합니다. `python`은 설치되어 있지 않아 스크립트 편집은 `node -e`/`node -` heredoc으로 합니다.
+- `web/src` 파일 일부는 CRLF 줄바꿈이라 `sed`의 `$`·줄 단위 치환이 빗나갑니다. 여러 줄 치환은 `\r?\n`을 허용하는 node 스크립트나 Edit 도구로 합니다.
+- 새 라우트를 만들면 `PageProps<"/새경로">` 타입이 아직 없어 `tsc`가 실패합니다. `npm run build`를 한 번 돌려 라우트 타입을 생성한 뒤 다시 검사합니다.
 
 ## Next.js 16 주의사항 (`web/AGENTS.md`)
 
@@ -90,6 +93,9 @@ npx tsc --noEmit     # 타입 검사만
 - 이 PC는 호스트 이름이 한글(`공군10전투비행단-PC03`)이라 `vercel login`이 `ByteString` 오류로 실패합니다. CLI가 필요하면 사용자가 만든 `VERCEL_TOKEN`으로 씁니다.
 - Supabase **Authentication → URL Configuration**: Site URL은 `https://videocreator-tau.vercel.app`, Redirect URLs는 `https://videocreator-tau.vercel.app/**`, `http://localhost:3000/**`입니다. 허용 목록에 없는 주소로 로그인 링크를 요청하면 Supabase가 Site URL로 보냅니다. 도메인이 바뀌면 둘 다 고칩니다. 대시보드 설정은 MCP로 바꿀 수 없어서, 사용자가 브라우저 창에서 로그인한 뒤 바꿔야 합니다.
 - 매직링크 메일 템플릿은 아직 기본값이라, 로그인 링크를 요청한 브라우저에서 열어야 로그인됩니다.
+- Vercel 프로젝트는 `https://vercel.com/rohi12/videocreator`(환경변수: `/settings/environment-variables`, 배포 목록: `/deployments`)입니다. 사용자가 Chrome에 로그인해 있으면 Claude in Chrome으로 변수 이름 입력·저장·Redeploy까지 할 수 있지만, 비밀 값은 사용자가 직접 붙여 넣어야 합니다.
+- 로컬 `.env.local`에는 `SUPABASE_SECRET_KEY`와 토스 키가 비어 있어 DB를 읽는 화면을 로컬에서 시험할 수 없습니다. 이런 흐름은 push 후 배포 사이트에서, 사용자가 로그인해 둔 Chrome으로 확인하고 `execute_sql`로 DB를 대조합니다.
+- push 뒤 배포가 반영됐는지는 새 코드에만 있는 문구를 `curl`로 확인하면서 기다립니다(예: `curl -s https://videocreator-tau.vercel.app/ | grep -q "<새 문구>"`).
 
 ## 검색 노출 (SEO·AEO·GEO)
 
@@ -99,6 +105,7 @@ npx tsc --noEmit     # 타입 검사만
 - `app/opengraph-image.tsx`는 빌드 때 Google Fonts에서 필요한 글자만 담은 Noto Sans KR을 받아 그립니다(`"use cache"`는 글꼴 로더에만 둡니다. 함수 전체에 두면 `Response`를 직렬화하지 못해 빌드가 실패합니다).
 - Google Search Console: URL 접두어 속성 `https://videocreator-tau.vercel.app/`, HTML 태그로 소유권 확인, `sitemap.xml` 제출 완료(2026-10-21). 확인 메타 태그를 지우면 소유권이 풀립니다.
 - 네이버 서치어드바이저는 Claude in Chrome 안전 정책으로 접속이 막혀 있어 사용자가 직접 등록합니다. 받은 토큰을 `SITE_VERIFICATION.naver`에 넣고 배포하면 메타 태그가 붙습니다.
+- 구조화 데이터 검증: `https://search.google.com/test/rich-results?url=<주소>`. "소프트웨어 앱"만 잡히는 것이 정상입니다(FAQ 리치 결과는 Google이 정부·보건 사이트에만 표시). `aggregateRating` 누락 경고는 실제 리뷰가 생기기 전까지 그대로 둡니다. 평점을 지어 넣지 않습니다.
 
 ## 결제 로직 검증 방법
 
