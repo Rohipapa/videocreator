@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   AbsoluteFill,
+  Audio,
   Easing,
   OffthreadVideo,
   Sequence,
@@ -12,16 +13,24 @@ import {
 } from "remotion";
 import { C, FONT, GRAD } from "./theme";
 
-// 30fps 기준 장면 배치(합계 29초)
+// 30fps 기준 장면 배치(합계 29.2초). 배경음악은 150BPM이라 1박 = 12프레임, 1마디 = 48프레임이다.
+// 첫 장면의 "생성하기" 클릭(156프레임)에 드롭이 오도록 맞추고, 이후 장면 경계는 모두 마디 시작에 둔다.
+const BEAT = 12;
+const BAR = BEAT * 4;
 const INTRO = 90;
 const SCENES = [
-  { src: "clips/landscape.mp4", prompt: "눈 덮인 바위산 위를 나는 드론 샷", startFrom: 30, duration: 180, slow: true },
-  { src: "clips/dog.mp4", prompt: "잔디밭을 달려오는 보더콜리, 슬로모션", startFrom: 15, duration: 150 },
-  { src: "clips/car.mp4", prompt: "햇살 가득한 시골길을 달리는 스포츠카", startFrom: 360, duration: 150 },
-  { src: "clips/jet.mp4", prompt: "붉은 구름을 가르는 전투기, 시네마틱", startFrom: 10, duration: 135 },
+  { src: "clips/landscape.mp4", prompt: "눈 덮인 바위산 위를 나는 드론 샷", startFrom: 30, duration: 162, slow: true },
+  { src: "clips/dog.mp4", prompt: "잔디밭을 달려오는 보더콜리, 슬로모션", startFrom: 15, duration: BAR * 3 },
+  { src: "clips/car.mp4", prompt: "햇살 가득한 시골길을 달리는 스포츠카", startFrom: 360, duration: BAR * 3 },
+  { src: "clips/jet.mp4", prompt: "붉은 구름을 가르는 전투기, 시네마틱", startFrom: 10, duration: BAR * 3 },
 ] as const;
-const MONTAGE = 75;
-const OUTRO = 90;
+const MONTAGE = BAR * 2;
+const OUTRO = BAR * 2;
+
+// 배경음악: Mixkit "Can't Get You Off My Mind"(Michael Ramir C.). 원곡 25.6초의 드롭을 DROP 프레임에 맞춘다.
+const MUSIC = "music/cant-get-you-off-my-mind.mp3";
+const DROP = INTRO + 66;
+const MUSIC_DROP_SEC = 25.6;
 
 const sceneStarts = SCENES.reduce<number[]>((acc, s, i) => [...acc, i === 0 ? INTRO : acc[i - 1] + SCENES[i - 1].duration], []);
 const MONTAGE_START = sceneStarts[sceneStarts.length - 1] + SCENES[SCENES.length - 1].duration;
@@ -35,6 +44,13 @@ export const Promo = () => {
   const frame = useCurrentFrame();
   return (
     <AbsoluteFill style={{ background: C.bg, fontFamily: FONT, color: C.text }}>
+      <Audio
+        src={staticFile(MUSIC)}
+        trimBefore={Math.round(MUSIC_DROP_SEC * 30) - DROP}
+        volume={(f) =>
+          interpolate(f, [0, 12, PROMO_DURATION - 40, PROMO_DURATION - 1], [0, 0.9, 0.9, 0], clamp)
+        }
+      />
       <Backdrop />
       <Sequence durationInFrames={INTRO}>
         <Intro />
@@ -55,6 +71,10 @@ export const Promo = () => {
           <Wipe />
         </Sequence>
       ))}
+      {/* 드롭 순간의 섬광 */}
+      <Sequence from={DROP} durationInFrames={10}>
+        <Flash />
+      </Sequence>
       {/* 스톡 영상을 AI 생성물로 오인하지 않도록 예시 영상임을 표기한다 */}
       {frame >= INTRO && frame < OUTRO_START && (
         <div
@@ -128,6 +148,20 @@ const Wipe = () => {
         }}
       />
     </AbsoluteFill>
+  );
+};
+
+const Flash = () => {
+  const f = useCurrentFrame();
+  return (
+    <AbsoluteFill
+      style={{
+        background: GRAD,
+        mixBlendMode: "screen",
+        opacity: interpolate(f, [0, 10], [0.55, 0], { ...clamp, easing: Easing.out(Easing.quad) }),
+        pointerEvents: "none",
+      }}
+    />
   );
 };
 
@@ -239,10 +273,10 @@ const GenScene = ({ src, prompt, startFrom, duration, slow }: SceneProps) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // 첫 장면은 천천히 보여 주고, 이후는 리듬을 빠르게 한다.
+  // 첫 장면은 천천히 보여 주고(클릭 = 드롭), 이후는 마디 시작 + 3박에 클릭한다.
   const t = slow
-    ? { typeStart: 10, typeEnd: 60, click: 66, revealStart: 72, revealEnd: 104, expandEnd: 122 }
-    : { typeStart: 6, typeEnd: 36, click: 40, revealStart: 44, revealEnd: 68, expandEnd: 84 };
+    ? { typeStart: 10, typeEnd: 56, click: DROP - INTRO, revealStart: 70, revealEnd: 96, expandEnd: 112 }
+    : { typeStart: 6, typeEnd: 32, click: BEAT * 3, revealStart: 40, revealEnd: 64, expandEnd: 80 };
 
   const chars = [...prompt];
   const typed = Math.round(interpolate(f, [t.typeStart, t.typeEnd], [0, chars.length], clamp));
@@ -494,7 +528,7 @@ const Montage = () => {
       </div>
       <div style={{ display: "flex", gap: 26 }}>
         {SCENES.map((s, i) => {
-          const p = spring({ frame: f - 6 - i * 4, fps, config: { damping: 16, stiffness: 130 } });
+          const p = spring({ frame: f - i * BEAT, fps, config: { damping: 16, stiffness: 130 } });
           return (
             <div
               key={s.src}
@@ -529,7 +563,7 @@ const Montage = () => {
           );
         })}
       </div>
-      <div style={{ display: "flex", gap: 14, opacity: interpolate(f, [24, 36], [0, 1], clamp) }}>
+      <div style={{ display: "flex", gap: 14, opacity: interpolate(f, [BEAT * 4, BEAT * 5], [0, 1], clamp) }}>
         {["16:9 유튜브", "9:16 쇼츠·릴스", "1:1 피드"].map((c) => (
           <span
             key={c}

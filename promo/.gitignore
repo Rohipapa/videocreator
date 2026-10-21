@@ -6,3 +6,5 @@ assets/clips/
 build/
 # 글꼴은 npm install 때 pretendard 패키지에서 복사한다(postinstall)
 assets/fonts/
+# 배경음악 원본(Mixkit, README의 출처에서 다시 받는다)
+assets/music/
