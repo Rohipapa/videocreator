@@ -89,6 +89,15 @@ npx tsc --noEmit     # 타입 검사만
 - Supabase **Authentication → URL Configuration**: Site URL은 `https://videocreator-tau.vercel.app`, Redirect URLs는 `https://videocreator-tau.vercel.app/**`, `http://localhost:3000/**`입니다. 허용 목록에 없는 주소로 로그인 링크를 요청하면 Supabase가 Site URL로 보냅니다. 도메인이 바뀌면 둘 다 고칩니다. 대시보드 설정은 MCP로 바꿀 수 없어서, 사용자가 브라우저 창에서 로그인한 뒤 바꿔야 합니다.
 - 매직링크 메일 템플릿은 아직 기본값이라, 로그인 링크를 요청한 브라우저에서 열어야 로그인됩니다.
 
+## 검색 노출 (SEO·AEO·GEO)
+
+- 사이트 정보(주소, 제목·설명, 요금 요약, FAQ, 검색 콘솔 확인 토큰)는 `web/src/lib/site.ts` 한곳에서 관리합니다. `PLAN_SUMMARY`는 DB `plans` 시드와 같은 값이어야 하므로 요금을 바꾸면 둘 다 고칩니다. FAQ 문구는 첫 화면 "자주 묻는 질문", FAQPage JSON-LD, `/llms.txt`에 함께 쓰이므로 실제 정책과 어긋나지 않게 씁니다.
+- `SITE_URL`은 `NEXT_PUBLIC_SITE_URL` → Vercel의 `VERCEL_PROJECT_PRODUCTION_URL` → localhost 순서로 정합니다.
+- 공개 페이지는 `/`, `/plans`뿐입니다. 새 공개 페이지를 만들면 `app/sitemap.ts`에 넣고 페이지 `metadata`에 `alternates.canonical`을 지정합니다. 로그인 뒤 화면은 `robots: { index: false }`를 두고 `app/robots.ts`의 `PRIVATE`에 넣습니다.
+- `app/opengraph-image.tsx`는 빌드 때 Google Fonts에서 필요한 글자만 담은 Noto Sans KR을 받아 그립니다(`"use cache"`는 글꼴 로더에만 둡니다. 함수 전체에 두면 `Response`를 직렬화하지 못해 빌드가 실패합니다).
+- Google Search Console: URL 접두어 속성 `https://videocreator-tau.vercel.app/`, HTML 태그로 소유권 확인, `sitemap.xml` 제출 완료(2026-10-21). 확인 메타 태그를 지우면 소유권이 풀립니다.
+- 네이버 서치어드바이저는 Claude in Chrome 안전 정책으로 접속이 막혀 있어 사용자가 직접 등록합니다. 받은 토큰을 `SITE_VERIFICATION.naver`에 넣고 배포하면 메타 태그가 붙습니다.
+
 ## 결제 로직 검증 방법
 
 실제 토스 테스트 키 없이 결제 로직을 확인할 때는 토스 API를 흉내 내는 로컬 모의 서버를 띄우고, 별도 포트의 dev 서버에 `TOSS_API_BASE=http://127.0.0.1:4010`, `TOSS_SECRET_KEY=test_sk_mock`을 주입해 `/billing/success?authKey=...&customerKey=<사용자 customer_key>&planId=basic`을 직접 호출합니다. 로그인은 로그인 화면의 **테스트 로그인**(dev 서버 + 테스트 키)으로 메일 없이 합니다. 이후 `/dev`에서 결제일 당기기와 스케줄러 실행을 반복하며 Supabase의 `subscriptions`, `payments`, `credit_ledger` 테이블을 `execute_sql`로 확인합니다. 테스트가 끝나면 테스트용 이메일의 `auth.users` 행을 지워 정리합니다(`profiles` 이하 데이터는 cascade로 함께 삭제). DB 함수만 확인할 때는 `execute_sql`로 테스트 사용자를 만들고 `assert`로 검증한 뒤 같은 블록에서 지우는 방식이 빠릅니다.
