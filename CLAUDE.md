@@ -108,6 +108,14 @@ npx tsc --noEmit     # 타입 검사만
 - 네이버 서치어드바이저는 Claude in Chrome 안전 정책으로 접속이 막혀 있어 사용자가 직접 등록합니다. 받은 토큰을 `SITE_VERIFICATION.naver`에 넣고 배포하면 메타 태그가 붙습니다.
 - 구조화 데이터 검증: `https://search.google.com/test/rich-results?url=<주소>`. "소프트웨어 앱"만 잡히는 것이 정상입니다(FAQ 리치 결과는 Google이 정부·보건 사이트에만 표시). `aggregateRating` 누락 경고는 실제 리뷰가 생기기 전까지 그대로 둡니다. 평점을 지어 넣지 않습니다.
 
+## 홍보영상 (`promo/`)
+
+- 렌더링·재생성 절차는 `promo/README.md`를 따릅니다. ffmpeg는 따로 설치돼 있지 않아 `promo/node_modules/@remotion/compositor-win32-x64-msvc/ffmpeg.exe`(ffprobe도 같은 폴더)를 씁니다. 이 빌드는 필터가 적어 `fps`·`tile`·`afade`와 raw 출력(`-f f32le`)이 없습니다. 크기 변경은 `scale`·`crop`, 페이드는 `volume='식':eval=frame`, 오디오 분석은 `pcm_s16le` WAV로 뽑아 node로 합니다.
+- npm 11은 설치 스크립트를 막으므로 Remotion 설치 뒤 `npm install-scripts approve esbuild`가 필요합니다.
+- 스톡 원본 URL: Pexels·Pixabay 페이지는 curl이 막혀 WebFetch로 찾습니다. Pexels는 `videos.pexels.com/video-files/{id}/{id}-uhd_3840_2160_24fps.mp4`, Pixabay는 페이지의 Canva 편집 링크 속 `cdn.pixabay.com/video/.../{id}_large.mp4`입니다. Mixkit은 curl이 되며 `assets.mixkit.co/videos/{id}/{id}-2160.mp4`, 음악은 `assets.mixkit.co/music/{id}/{id}.mp3`이고, 목록 페이지 HTML의 JSON-LD에 곡명·장르·길이가 있습니다.
+- 파일을 내려받기 전에는 파일명·출처·크기를 알리고 사용자 확인을 받습니다. 원본 미디어는 공개 저장소에 커밋하지 않습니다(라이선스상 원본만 따로 재배포 금지, 용량).
+- 광고 문구: 서비스 출력이 4K가 아니므로 해상도를 내세우지 않고, 스톡 영상에는 "예시용 스톡 영상" 표기를 유지합니다. 요금·길이·비율은 `web/src/lib/site.ts`와 같은 값만 씁니다.
+
 ## 결제 로직 검증 방법
 
 실제 토스 테스트 키 없이 결제 로직을 확인할 때는 토스 API를 흉내 내는 로컬 모의 서버를 띄우고, 별도 포트의 dev 서버에 `TOSS_API_BASE=http://127.0.0.1:4010`, `TOSS_SECRET_KEY=test_sk_mock`을 주입해 `/billing/success?authKey=...&customerKey=<사용자 customer_key>&planId=basic`을 직접 호출합니다. 로그인은 로그인 화면의 **테스트 로그인**(dev 서버 + 테스트 키)으로 메일 없이 합니다. 이후 `/dev`에서 결제일 당기기와 스케줄러 실행을 반복하며 Supabase의 `subscriptions`, `payments`, `credit_ledger` 테이블을 `execute_sql`로 확인합니다. 테스트가 끝나면 테스트용 이메일의 `auth.users` 행을 지워 정리합니다(`profiles` 이하 데이터는 cascade로 함께 삭제). DB 함수만 확인할 때는 `execute_sql`로 테스트 사용자를 만들고 `assert`로 검증한 뒤 같은 블록에서 지우는 방식이 빠릅니다.
